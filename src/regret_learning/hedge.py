@@ -1,6 +1,6 @@
 from src.game import Game
 from src.player import Player
-from src.constants import ACTIONS, ACTION
+from src.constants import ACTIONS
 from src.rock_paper_scissors import RockPaperScissors
 import numpy as np
 

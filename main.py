@@ -3,6 +3,8 @@ from src.regret_learning.pure_strategy import PureStrategyGame
 from src.regret_learning.mixed_strategy import MixedStrategyGame
 from src.regret_learning.hedge import HedgeGame
 from src.regret_learning.swap_regret import SwapRegretGame
+from src.regret_learning.swap_learner import SwapLearnerGame
+from src.regret_learning.compare_learners import CompareLearners
 from src.constants import ACTION
 
 def main():
@@ -53,8 +55,31 @@ def main():
 
     print("\nSwap Regret Game with Player a and b:")
     swap_regret_game = SwapRegretGame()
-    swap_regret_game.play(rounds=100, verbose=False)
-    
+    swap_regret_game.play_history(rounds=100, verbose=False)
+
+    print("\nSwap Learner Game with Player a and b using paper 1 round:")
+    swap_learner_game = SwapLearnerGame()
+    swap_learner_game.experiment(rounds=100, verbose=False)
+
+    print("\nSwap Learner Game with Player a and b using paper 5 rounds:")
+    swap_learner_game = SwapLearnerGame()
+    swap_learner_game.experiment_5_round()
+
+    print("\nSwap Learner Game with Player a and b using fixed action paper:")
+    swap_learner_game = SwapLearnerGame()
+    swap_learner_game.play_fixed_b(action=ACTION.PAPER, rounds=100, verbose=False)
+
+    print("\nSwap Learner Game with Player a and b:")
+    swap_learner_game = SwapLearnerGame()
+    swap_learner_game.play(rounds=100, verbose=False)
+
+    print("\nSwap Learner Game vs Hedge Game with Player a and b:")
+    comparison_result = CompareLearners.results(rounds=100, verbose=False)
+    print("\nComparison Result:")
+    for player, stats in comparison_result.items():
+        print(f"Player {player}:")
+        for metric, value in stats.items():
+            print(f"  {metric}: {value}")
 
 if __name__ == "__main__":
     main()
