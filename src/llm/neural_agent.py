@@ -4,7 +4,7 @@ import torch.nn as nn
 from src.llm.batch_generator import make_batch
 from src.llm.neural_train_eval import evaluate_model, train_model
 from src.constants import ACTIONS, PAYOFF_TENSOR, SEED
-from src.llm import SimpleOpponentPredictor
+from src.llm.SimpleOpponentPredictor import SimpleOpponentPredictor
 
 torch.manual_seed(SEED)  # For reproducibility
 
@@ -60,4 +60,3 @@ class SimpleOpponentPredictorGame(nn.Module):
                     "Best action for A:",
                     ACTIONS[best_actions_a[i].item()]
                 )
-                

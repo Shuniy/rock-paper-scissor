@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 
 from src.constants import SEED
 
@@ -20,7 +19,7 @@ def make_batch(n=256, history_length=5):
     random_moves = torch.randint(0, 3, (n, history_length + 1))
 
     # Follow preferred action 85% of the time
-    follow_favorite = torch.where(torch.rand(n, history_length + 1) < 0.85)
+    follow_favorite = torch.rand(n, history_length + 1) < 0.85
 
     # follow preferred action with 85% probability, otherwise random
     moves = torch.where(
