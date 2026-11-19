@@ -1,6 +1,5 @@
 import torch
-import torch.nn as nn
-from src.constants import SEED
+from src.constants import ACTIONS, PAYOFF_TENSOR, SEED
 
 torch.manual_seed(SEED)  # For reproducibility
 
@@ -45,3 +44,26 @@ def evaluate_model(model, test_data):
         "predictions": predictions,
         "targets": target
     }
+
+def predict(model, history):
+    """
+    Predict the opponent's next action based on the given history.
+    :param model: Trained opponent predictor model.
+    :param history: Tensor of shape (batch_size, history_length) representing the history of opponent moves.
+    :return: Tensor of shape (batch_size,) representing the predicted next actions.
+    """
+    result = {}
+    with torch.no_grad():
+        probabilities = model(history).softmax(dim=1)
+        # Expected reward for each possible A action
+        expected_rewards = probabilities @ PAYOFF_TENSOR.T
+        best_actions = expected_rewards.argmax(dim=1)
+        for i in range(3):
+            print(f"\nB history: {ACTIONS[i]} x5")
+            print("Predicted B probabilities:", probabilities[i].numpy().round(3))
+            print("Best action for A:", ACTIONS[best_actions[i].item()])
+
+        result["best_actions"] = best_actions
+        result["probabilities"] = probabilities
+    return result
+

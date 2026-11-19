@@ -13,7 +13,7 @@ class ACTION(str, Enum):
 ACTIONS = [action.value for action in ACTION]
 
 PAYOFF_TENSOR = torch.tensor(
-    [[0, -1, 1],  # Rock
-     [1, 0, -1],  # Paper
-     [-1, 1, 0]]  # Scissors
+    [[0.0, -1.0, 1.0],  # Rock
+     [1.0, 0.0, -1.0],  # Paper
+     [-1.0, 1.0, 0.0]]  # Scissors
 )

@@ -7,6 +7,7 @@ from src.regret_learning.swap_regret import SwapRegretGame
 from src.regret_learning.swap_learner import SwapLearnerGame
 from src.regret_learning.compare_learners import CompareLearners
 from src.constants import ACTION
+import torch
 
 def checking_regret_learning():
     # normal game
@@ -84,9 +85,18 @@ def checking_regret_learning():
 
 def check_neural():
     # simple neural network opponent predictor
+    examples = torch.tensor([
+            [0, 0, 0, 0, 0],
+            [1, 1, 1, 1, 1],
+            [2, 2, 2, 2, 2]
+        ])
     print("\nSimple Neural Network Opponent Predictor Game:")
     neural_game = SimpleOpponentPredictorGame()
-    neural_game.play(rounds=100)
+    neural_game.play(examples, rounds=100)
+
+    print("\nTransformer Neural Network Opponent Predictor Game:")
+    transformer_game = SimpleOpponentPredictorGame(type="Transformer")
+    transformer_game.play(examples, rounds=100)
 
 def main():
     # checking_regret_learning()
