@@ -12,6 +12,7 @@ def train_model(model, train_data, optimizer, criterion, epochs=1000, batch_size
     :param history_length: Length of the history to generate.
     :return: Trained model.
     """
+    model.train()
     for epoch in range(epochs):
         history, target = train_data
 
@@ -53,6 +54,7 @@ def predict(model, history):
     :return: Tensor of shape (batch_size,) representing the predicted next actions.
     """
     result = {}
+    model.eval()
     with torch.no_grad():
         probabilities = model(history).softmax(dim=1)
         # Expected reward for each possible A action

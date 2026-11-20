@@ -1,4 +1,6 @@
+from src.llm.swap_regret_transformer import experiment_swap_a, experiment_swap_b
 from src.llm.neural_agent import SimpleOpponentPredictorGame
+from src.llm.regret_neural_agent import RegretOpponentPredictorGame
 from src.regret_learning.zero_sum_game import ZeroSumGame
 from src.regret_learning.pure_strategy import PureStrategyGame
 from src.regret_learning.mixed_strategy import MixedStrategyGame
@@ -97,6 +99,16 @@ def check_neural():
     print("\nTransformer Neural Network Opponent Predictor Game:")
     transformer_game = SimpleOpponentPredictorGame(type="Transformer")
     transformer_game.play(examples, rounds=100)
+
+    print("\nTransformer Neural Network Opponent Predictor Game with more rounds:")
+    transformer_game = RegretOpponentPredictorGame(type="Transformer")
+    transformer_game.play(examples, rounds=500)
+
+    print("\nSwap Regret transformer experiment a:")
+    experiment_swap_a()
+
+    print("\nSwap Regret transformer experiment b:")
+    experiment_swap_b()
 
 def main():
     # checking_regret_learning()
