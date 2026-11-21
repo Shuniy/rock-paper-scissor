@@ -3,15 +3,15 @@ from typing import Literal
 import torch
 import torch.nn as nn
 
-from src.llm.tiny_transformer import TinyTransformer
-from src.llm.batch_generator import make_batch
-from src.llm.simple_neural_train_eval_predict import evaluate_model, predict, train_model
+from src.neural.tiny_transformer import TinyTransformer
+from src.neural.batch_generator import make_batch
+from src.neural.regret_train_eval_predict import evaluate_model, predict, train_model
 from src.constants import SEED
-from src.llm.simple_opponent_predictor import SimpleOpponentPredictor
+from src.neural.simple_opponent_predictor import SimpleOpponentPredictor
 
 torch.manual_seed(SEED)  # For reproducibility
 
-class SimpleOpponentPredictorGame(nn.Module):
+class RegretOpponentPredictorGame(nn.Module):
     def __init__(self, type: Literal["MLP", "Transformer"] = "MLP"):
         super().__init__()
         # initialize the model
