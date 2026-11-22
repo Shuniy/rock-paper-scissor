@@ -241,7 +241,7 @@ describe('live runner', () => {
   });
 });
 
-it('reloads the failed catalog once when the backend recovers', async () => {
+it('reloads the catalog when it fails before the backend recovers', async () => {
   vi.useFakeTimers();
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
   vi.stubGlobal('localStorage', {getItem: () => null, setItem: () => {}});
@@ -270,15 +270,36 @@ it('reloads the failed catalog once when the backend recovers', async () => {
   ]);
 });
 
-it('keeps manual retry available if the automatic catalog reload fails', async () => {
+it('reloads the catalog when it fails after the health check succeeds', async () => {
+  vi.useFakeTimers();
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+  vi.stubGlobal('localStorage', {getItem: () => null, setItem: () => {}});
+  let deliverCatalog!: (response: Response) => void;
+  const initialCatalog = new Promise<Response>(resolve => { deliverCatalog = resolve; });
+  const catalog = vi.fn().mockReturnValueOnce(initialCatalog).mockImplementation(async () => json([experiment]));
+  vi.stubGlobal('fetch', vi.fn(async (path: string) => path.endsWith('/experiments') ? catalog() : json({status: 'ok'})));
+  render(<MemoryRouter initialEntries={['/category/regret']}><App/></MemoryRouter>);
+
+  await act(() => vi.advanceTimersByTimeAsync(0));
+  expect(screen.getByText('Local lab online')).toBeTruthy();
+  expect(screen.getByText('Connecting to the local API…')).toBeTruthy();
+  expect(catalog).toHaveBeenCalledTimes(1);
+
+  await act(async () => { deliverCatalog(json({}, 503)); });
+  expect(catalog).toHaveBeenCalledTimes(2);
+  expect(screen.getByText(experiment.title)).toBeTruthy();
+});
+
+it('retries automatically once per recovery and keeps manual retry available', async () => {
   vi.useFakeTimers();
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
   vi.stubGlobal('localStorage', {getItem: () => null, setItem: () => {}});
   let healthy = false;
-  let catalogAvailable = false;
+  let catalogRequests = 0;
   const fetcher = vi.fn(async (path: string) => {
     if (path.endsWith('/health')) return json({status: healthy ? 'ok' : 'unavailable'});
-    return catalogAvailable ? json([experiment]) : json({}, 503);
+    catalogRequests += 1;
+    return catalogRequests <= 3 ? json({}, 503) : json([experiment]);
   });
   vi.stubGlobal('fetch', fetcher);
   render(<MemoryRouter initialEntries={['/category/regret']}><App/></MemoryRouter>);
@@ -288,11 +309,19 @@ it('keeps manual retry available if the automatic catalog reload fails', async (
   expect(screen.getByText('Local lab online')).toBeTruthy();
   expect(screen.getByRole('button', {name: 'retry'})).toBeTruthy();
 
-  catalogAvailable = true;
+  await act(() => vi.advanceTimersByTimeAsync(30000));
+  expect(catalogRequests).toBe(2);
+
+  healthy = false;
   await act(() => vi.advanceTimersByTimeAsync(15000));
-  expect(fetcher.mock.calls.filter(([path]) => path === '/api/experiments')).toHaveLength(2);
+  expect(screen.getByText('API unavailable')).toBeTruthy();
+  healthy = true;
+  await act(() => vi.advanceTimersByTimeAsync(15000));
+  expect(catalogRequests).toBe(3);
+
   fireEvent.click(screen.getByRole('button', {name: 'retry'}));
   await act(() => vi.advanceTimersByTimeAsync(0));
+  expect(catalogRequests).toBe(4);
   expect(screen.getByText(experiment.title)).toBeTruthy();
 });
 
@@ -322,6 +351,30 @@ it('updates connectivity on health loss and recovery while retaining the catalog
   view.unmount();
   await vi.advanceTimersByTimeAsync(30000);
   expect(fetcher.mock.calls.map(([path]) => path)).toEqual(['/api/experiments', '/api/health', '/api/health', '/api/health']);
+});
+
+it('ignores late catalog and health responses after unmounting', async () => {
+  vi.useFakeTimers();
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+  vi.stubGlobal('localStorage', {getItem: () => null, setItem: () => {}});
+  let deliverCatalog!: (response: Response) => void;
+  let deliverHealth!: (response: Response) => void;
+  const catalog = new Promise<Response>(resolve => { deliverCatalog = resolve; });
+  const health = new Promise<Response>(resolve => { deliverHealth = resolve; });
+  const fetcher = vi.fn((path: string, _init?: RequestInit) => path.endsWith('/experiments') ? catalog : health);
+  vi.stubGlobal('fetch', fetcher);
+  const view = render(<MemoryRouter initialEntries={['/category/regret']}><App/></MemoryRouter>);
+  const signal = fetcher.mock.calls.find(([path]) => path === '/api/health')?.[1]?.signal;
+
+  expect(signal?.aborted).toBe(false);
+  view.unmount();
+  expect(signal?.aborted).toBe(true);
+  await act(async () => {
+    deliverCatalog(json({}, 503));
+    deliverHealth(json({status: 'ok'}));
+    await vi.advanceTimersByTimeAsync(30000);
+  });
+  expect(fetcher.mock.calls.map(([path]) => path)).toEqual(['/api/experiments', '/api/health']);
 });
 
 describe('results', () => {
