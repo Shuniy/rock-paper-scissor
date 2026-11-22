@@ -46,7 +46,7 @@ class OnlineTransformer(nn.Module):
         return self.output(h[:, -1, :]).softmax(dim=-1)
 
 
-def update_a(model, memory, history, b, lambda_swap, learning_rate=LR):
+def update_a(model, memory, history, b, lambda_swap, learning_rate=LR, return_metrics=False):
     memory = (memory + [(history.clone(), int(b))])[-WINDOW:]
     contexts = torch.stack([h for h, _ in memory])
     b_actions = torch.tensor([a for _, a in memory], dtype=torch.long)
@@ -62,6 +62,12 @@ def update_a(model, memory, history, b, lambda_swap, learning_rate=LR):
     with torch.no_grad():
         for param in model.parameters():
             param -= learning_rate * param.grad
+    if return_metrics:
+        return memory, {
+            'training_loss': float(loss.detach()),
+            'update_expected_reward': float(expected_reward.detach()),
+            'update_swap_surrogate': float(swap_surrogate.detach()),
+        }
     return memory
 
 
@@ -71,9 +77,12 @@ def b_expected_rewards(model, history):
     return PAYOFF_B @ p
 
 
-def choose_b(model, history, memory, strategy, lambda_swap, assumed_lr=None, assumed_lambda=None):
+def choose_b(model, history, memory, strategy, lambda_swap, assumed_lr=None, assumed_lambda=None,
+             return_plan=False):
     if strategy == 'myopic':
-        return int(b_expected_rewards(model, history).argmax())
+        values = b_expected_rewards(model, history)
+        action = int(values.argmax())
+        return (action, (action,), float(values[action])) if return_plan else action
 
     if not strategy.startswith('plan'):
         raise ValueError(strategy)
@@ -101,7 +110,8 @@ def choose_b(model, history, memory, strategy, lambda_swap, assumed_lr=None, ass
             ))
         if value > best_value:
             best_value, best_first = value, plan[0]
-    return int(best_first)
+            best_plan = plan
+    return (best_first, best_plan, best_value) if return_plan else int(best_first)
 
 
 def measured_regrets(a_actions, b_actions):

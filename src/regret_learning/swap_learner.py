@@ -138,7 +138,7 @@ class SwapLearnerGame:
             # step 7: Update every row's log-weights for Player A
             self.weights_a += self.learning_rate * pi_a[:, np.newaxis] * rewards_a[np.newaxis, :]
             # step 8: reward for all possible actions of Player B against Player A's action
-            rewards_b = self.payoff_matrix[ACTIONS.index(action_a), :]
+            rewards_b = -self.payoff_matrix[ACTIONS.index(action_a), :]
             # step 9: Update every row's log-weights for Player B
             self.weights_b += self.learning_rate * pi_b[:, np.newaxis] * rewards_b[np.newaxis, :]
             if step + 1 in [rounds // 10 * i for i in range(1, 11)]:
@@ -164,7 +164,7 @@ class SwapLearnerGame:
         fixed_rewards_b = np.zeros(len(ACTIONS))
         for i, action in enumerate(ACTIONS):
             fixed_rewards_a[i] = np.sum(self.payoff_matrix[i, history_b])
-            fixed_rewards_b[i] = np.sum(self.payoff_matrix[history_a, i])
+            fixed_rewards_b[i] = -np.sum(self.payoff_matrix[history_a, i])
         external_regret_a = np.max(fixed_rewards_a) - self.player_a.score
         external_regret_b = np.max(fixed_rewards_b) - self.player_b.score
         print("\nExternal regret for Player A after all rounds:", external_regret_a)
@@ -183,9 +183,9 @@ class SwapLearnerGame:
                     for replacement_action in range(len(ACTIONS)):
                         replacement_rewards_a[replacement_action] += self.payoff_matrix[replacement_action, b]
                 if b == i:
-                    original_rewards_b += self.payoff_matrix[a, b]
+                    original_rewards_b -= self.payoff_matrix[a, b]
                     for replacement_action in range(len(ACTIONS)):
-                        replacement_rewards_b[replacement_action] += self.payoff_matrix[a, replacement_action]
+                        replacement_rewards_b[replacement_action] -= self.payoff_matrix[a, replacement_action]
             best_replacement_reward_a = np.max(replacement_rewards_a)
             improvement_a = best_replacement_reward_a - original_rewards_a
             swap_regret_a += improvement_a

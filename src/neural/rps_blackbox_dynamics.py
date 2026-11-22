@@ -49,7 +49,7 @@ def episode_tokens(initial_history, b_actions, a_actions):
     return prefix + past_pairs
 
 
-def collect_training_episode(seed, lam, rounds=TRAIN_ROUNDS):
+def collect_training_episode(seed, lam, rounds=TRAIN_ROUNDS, learning_rate=LR):
     # The data collection process is black-box: only sampled A actions are saved.
     torch.manual_seed(seed)
     a_model = OnlineTransformer().train()
@@ -85,7 +85,7 @@ def collect_training_episode(seed, lam, rounds=TRAIN_ROUNDS):
         b_actions.append(b)
         memory = update_a(
             a_model, memory, torch.tensor(b_history, dtype=torch.long),
-            b, lam, learning_rate=LR
+            b, lam, learning_rate=learning_rate
         )
         b_history = (b_history + [b])[-HISTORY:]
 
@@ -131,7 +131,7 @@ def predict_a(emulator, tokens):
     return emulator(x)[0, -1].softmax(-1).numpy()
 
 
-def choose_b_blackbox(emulator, tokens, strategy):
+def choose_b_blackbox(emulator, tokens, strategy, return_plan=False):
     if strategy == 'learned_myopic':
         return int(np.argmax(PAYOFF_B_NP @ predict_a(emulator, tokens)))
 
@@ -151,7 +151,8 @@ def choose_b_blackbox(emulator, tokens, strategy):
         if total > best_score:
             best_score = total
             best_first = plan[0]
-    return int(best_first)
+            best_plan = plan
+    return (best_first, best_plan, best_score) if return_plan else int(best_first)
 
 
 def evaluate_episode(emulator, lam, seed, strategy):
@@ -190,7 +191,7 @@ def evaluate_episode(emulator, lam, seed, strategy):
         tokens.append(3 * b + a)
         memory = update_a(
             a_model, memory, torch.tensor(history, dtype=torch.long),
-            b, lam, learning_rate=LR
+            b, lam, learning_rate=learning_rate
         )
         history = (history + [b])[-HISTORY:]
 

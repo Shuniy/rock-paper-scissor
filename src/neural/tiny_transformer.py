@@ -31,7 +31,7 @@ class TinyTransformer(nn.Module):
         x = self.token_embedding(history) + self.position_embedding(positions)
 
         # prevent attention to future tokens
-        causal_mask = torch.triu(torch.ones(seq_len, seq_len, device=history.device), diagonal=1)
+        causal_mask = torch.triu(torch.ones(seq_len, seq_len, device=history.device, dtype=torch.bool), diagonal=1)
         # process sequence through the transformer
         h = self.transformer(x, mask=causal_mask)
         # take the final position to predict the next action

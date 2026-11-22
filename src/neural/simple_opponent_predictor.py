@@ -1,15 +1,12 @@
 import torch
 import torch.nn as nn
-from src.constants import SEED
-
-torch.manual_seed(SEED)  # For reproducibility
 
 class SimpleOpponentPredictor(nn.Module):
-    def __init__(self):
+    def __init__(self, history_length=5):
         super().__init__()
         self.embedding = nn.Embedding(3, 8)  # 3 actions, embedding size 8
         self.network = nn.Sequential(
-            nn.Linear(8 * 5, 32),  # history_length = 5
+            nn.Linear(8 * history_length, 32),
             nn.ReLU(),
             nn.Linear(32, 3)  # 3 actions
         )

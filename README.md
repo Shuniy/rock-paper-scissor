@@ -27,6 +27,23 @@ We investigated a repeated-game setting in which:
 
 ---
 
+## Interactive Simulation Lab
+
+The local web app lets you run the study algorithms with your own settings and explore the original research CSVs. **Run Simulation** starts computation with real progress, round playback, an inspector, and exports. **Replay Research Results** opens the recorded Ollama rounds or the paired neural seed summaries immediately. It needs neither an installed model nor access to the Ollama server.
+
+From the project root, with Python 3.10+ and Node.js 20.19+ or 22.12+:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r backend/requirements.txt
+npm --prefix frontend ci
+./dev.sh
+```
+
+Open [the lab](http://127.0.0.1:5173/). See [development and testing](docs/development.md), the [experiment catalog](docs/experiments.md), and the [architecture and API guide](docs/architecture.md). The research record follows below.
+
+---
+
 ## Table of contents
 
 1. [Research motivation and questions](#1-research-motivation-and-questions)

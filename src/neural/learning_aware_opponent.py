@@ -33,14 +33,16 @@ def policy(log_weights):
 
 
 # Agent B chooses an action
-def choose_b(log_weights, method):
+def choose_b(log_weights, method, horizon=HORIZON, learning_rate=ETA, return_plan=False):
 
     # Immediate best response
     if method == "myopic":
 
         p_a = policy(log_weights)
 
-        return int(np.argmax(p_a @ B_PAYOFF))
+        values = p_a @ B_PAYOFF
+        action = int(np.argmax(values))
+        return (action, (action,), float(values[action])) if return_plan else action
 
     if method != "planner":
         raise ValueError(method)
@@ -49,7 +51,7 @@ def choose_b(log_weights, method):
     best_value = float("-inf")
     best_first_action = None
 
-    for plan in product(range(3), repeat=HORIZON):
+    for plan in product(range(3), repeat=horizon):
 
         simulated_weights = log_weights.copy()
         total_expected_reward = 0.0
@@ -65,15 +67,16 @@ def choose_b(log_weights, method):
 
             # Simulate how A learns from B's action
             simulated_weights += (
-                ETA * A_PAYOFF[:, b]
+                learning_rate * A_PAYOFF[:, b]
             )
 
         if total_expected_reward > best_value:
 
             best_value = total_expected_reward
             best_first_action = plan[0]
+            best_plan = plan
 
-    return best_first_action
+    return (best_first_action, best_plan, best_value) if return_plan else best_first_action
 
 
 # Run one episode

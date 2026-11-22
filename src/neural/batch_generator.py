@@ -1,10 +1,7 @@
 import torch
 
-from src.constants import SEED
 
-torch.manual_seed(SEED)  # For reproducibility
-
-def make_batch(n=256, history_length=5):
+def make_batch(n=256, history_length=5, generator=None):
     """
     Generate a batch of opponent moves for training.
     Each opponent has a preferred action, and they follow it with 85% probability.
@@ -13,13 +10,13 @@ def make_batch(n=256, history_length=5):
     :return: Tuple of (history, target) where history is a tensor of shape (n, history_length) and target is a tensor of shape (n,).
     """
     # Each opponent has a preferred action
-    favorite = torch.randint(0, 3, (n, 1))
+    favorite = torch.randint(0, 3, (n, 1), generator=generator)
 
     #  generate random actions
-    random_moves = torch.randint(0, 3, (n, history_length + 1))
+    random_moves = torch.randint(0, 3, (n, history_length + 1), generator=generator)
 
     # Follow preferred action 85% of the time
-    follow_favorite = torch.rand(n, history_length + 1) < 0.85
+    follow_favorite = torch.rand(n, history_length + 1, generator=generator) < 0.85
 
     # follow preferred action with 85% probability, otherwise random
     moves = torch.where(

@@ -33,10 +33,10 @@ STRATEGIES = ('uniform', 'always_scissors', 'bait2_scissors', 'bait4_scissors', 
 HISTORY_WINDOW = 8
 
 
-def make_messages(history):
+def make_messages(history, window=HISTORY_WINDOW):
     lines = [
         f'You: {ACTIONS[a]}, Opponent: {ACTIONS[b]}, Your reward: {r:+d}'
-        for a, b, r in history[-HISTORY_WINDOW:]
+        for a, b, r in (history[-window:] if window else ())
     ]
     previous = '\n'.join(lines) if lines else 'No prior rounds shown.'
     return [
@@ -76,6 +76,10 @@ def ask_llm(model, history):
             'Check `ollama ls` and that the server is running.'
         ) from exc
     raw = data.get('message', {}).get('content', '').strip()
+    return parse_action(raw)
+
+
+def parse_action(raw):
     words = re.findall(r'\b(rock|paper|scissors)\b', raw, flags=re.IGNORECASE)
     # Strict validation: accept a single RPS action; never silently read a multi-action list.
     if len(words) == 1:

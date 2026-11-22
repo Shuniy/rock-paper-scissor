@@ -22,8 +22,7 @@ class HedgeGame:
             self.player_a.action = self.player_a.choose_action(probabilities=probabilities_a)
             player_b_fixed_action = first_action if step < change_action_after else second_action # player b always chooses the specified action
             self.player_b.action = self.player_b.choose_action(action=player_b_fixed_action)
-            all_rewards = RockPaperScissors().payoff_matrix
-            # if player b chooses action, then all the rewards for player a are the corresponding row in the payoff matrix
+            # The column for B’s move gives the reward of every A action.
             all_rewards_for_a = all_rewards[:, ACTIONS.index(player_b_fixed_action)]
             self.cumulative_rewards_a += all_rewards_for_a
             # play the game
@@ -34,20 +33,18 @@ class HedgeGame:
                 if step + 1 in [rounds // 10 * i for i in range(1, 11)]:  # Print every 10% of the rounds
                     print(f"Round {round_number}: {self.player_a.name} chose {action_a}, {self.player_b.name} chose {action_b}. Rewards: {self.player_a.name}: {reward_a}, {self.player_b.name}: {reward_b}")
 
-        # First 50 rounds: Agent B plays Paper (1)
-        best_first_half = np.max(all_rewards[:, 1]) * 50
-
-        # Next 50 rounds: Agent B plays Rock (0)
-        best_second_half = np.max(all_rewards[:, 0]) * 50
-
-        # Best strategy allowed to change once
-        best_dynamic_reward = best_first_half + best_second_half
+        # A phase-aware comparator may change action at the configured switch.
+        first_length = min(rounds, max(0, change_action_after))
+        second_length = rounds - first_length
+        best_first_phase = np.max(all_rewards[:, ACTIONS.index(first_action)]) * first_length
+        best_second_phase = np.max(all_rewards[:, ACTIONS.index(second_action)]) * second_length
+        best_dynamic_reward = best_first_phase + best_second_phase
 
         dynamic_regret = best_dynamic_reward - self.player_a.score
 
         print("\nDynamic Regret Analysis:")
-        print("Best reward in first half:", best_first_half)
-        print("Best reward in second half:", best_second_half)
+        print("Best reward in first phase:", best_first_phase)
+        print("Best reward in second phase:", best_second_phase)
         print("Best dynamic reward:", best_dynamic_reward)
         print("Hedge reward:", self.player_a.score)
         print("Dynamic regret:", dynamic_regret)
@@ -136,7 +133,7 @@ class HedgeGame:
             all_rewards = RockPaperScissors().payoff_matrix
             # if player b chooses action, then all the rewards for player a are the corresponding row in the payoff matrix
             all_rewards_for_a = all_rewards[:, ACTIONS.index(self.player_b.action)]
-            all_rewards_for_b = all_rewards[ACTIONS.index(self.player_a.action), :]
+            all_rewards_for_b = -all_rewards[ACTIONS.index(self.player_a.action), :]
             self.cumulative_rewards_a += all_rewards_for_a
             self.cumulative_rewards_b += all_rewards_for_b
             # play the game

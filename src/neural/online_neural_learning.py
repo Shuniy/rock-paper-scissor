@@ -51,7 +51,7 @@ class NeuralLearner(nn.Module):
 
 
 # STEP 2: Agent A learns after observing B
-def update_a(model, b):
+def update_a(model, b, learning_rate=LR):
 
     p = model()
 
@@ -64,17 +64,21 @@ def update_a(model, b):
     # Online gradient-descent update
     with torch.no_grad():
         for param in model.parameters():
-            param -= LR * param.grad
+            param -= learning_rate * param.grad
+
+    return float(loss.detach())
 
 
 # STEP 3: Agent B chooses a strategy
-def choose_b(model, method):
+def choose_b(model, method, horizon=LOOKAHEAD, learning_rate=LR, return_plan=False):
 
     if method == "myopic":
 
         with torch.no_grad():
             p = model()
-            return int((p @ B_PAYOFF).argmax())
+            values = p @ B_PAYOFF
+            action = int(values.argmax())
+            return (action, (action,), float(values[action])) if return_plan else action
 
     if method != "planner":
         raise ValueError(method)
@@ -83,7 +87,7 @@ def choose_b(model, method):
     best_first = None
 
     # Try all 3^LOOKAHEAD possible action plans
-    for plan in product(range(3), repeat=LOOKAHEAD):
+    for plan in product(range(3), repeat=horizon):
 
         # Don't modify the actual neural agent
         simulated = copy.deepcopy(model)
@@ -100,13 +104,14 @@ def choose_b(model, method):
                 )
 
             # Predict how A's neural weights change
-            update_a(simulated, b)
+            update_a(simulated, b, learning_rate)
 
         if value > best_value:
             best_value = value
             best_first = plan[0]
+            best_plan = plan
 
-    return best_first
+    return (best_first, best_plan, best_value) if return_plan else best_first
 
 
 # STEP 4: Play a complete episode

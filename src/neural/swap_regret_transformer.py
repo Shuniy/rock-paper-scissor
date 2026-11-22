@@ -3,7 +3,6 @@ import torch.nn as nn
 
 from src.constants import PAYOFF_TENSOR, SEED
 
-torch.manual_seed(SEED)  # For reproducibility
 
 H = 5       # Previous actions visible to the model
 T = 30      # Rounds per episode
@@ -11,20 +10,22 @@ T = 30      # Rounds per episode
 rng = torch.Generator().manual_seed(SEED)  # For reproducibility
 
 # STEP 1: Generate complete game episodes
-def generate_episodes(batch):
-    length = H + T
+def generate_episodes(batch, history_length=H, rounds=T, generator=None):
+    if generator is None:
+        generator = rng
+    length = history_length + rounds
     # Generate random moves for both players
-    random_moves = torch.randint(0, 3, (batch, length), generator=rng)
+    random_moves = torch.randint(0, 3, (batch, length), generator=generator)
     # Generate random favorite actions for player A
-    favorite = torch.randint(0, 3, (batch, 1), generator=rng)
+    favorite = torch.randint(0, 3, (batch, 1), generator=generator)
     # Generate random phases for each episode
-    phase = torch.randint(0, 3, (batch, 1), generator=rng)  # 0 for phase 1, 1 for phase 2
+    phase = torch.randint(0, 3, (batch, 1), generator=generator)  # 0 for phase 1, 1 for phase 2
     t = torch.arange(length)[None, :]
     # Four opponent behaviours
     mode = (torch.arange(batch) % 4)[:, None]
     fixed = favorite.expand(batch, length)
     switched = torch.where(
-        t < H + T // 2,
+        t < history_length + rounds // 2,
         favorite,
         (favorite + 1) % 3
     )
@@ -37,7 +38,7 @@ def generate_episodes(batch):
     # Follow the pattern 85% of the time.
     # Mode 3 uses uniformly random actions.
     follow = (
-        (torch.rand(batch, length, generator=rng) < 0.85)
+        (torch.rand(batch, length, generator=generator) < 0.85)
         & (mode != 3)
     )
 
@@ -45,11 +46,11 @@ def generate_episodes(batch):
 
     # Each decision uses only the previous H moves
     histories = torch.stack(
-        [moves[:, i:i + H] for i in range(T)],
+        [moves[:, i:i + history_length] for i in range(rounds)],
         dim=1
     )
 
-    opponents = moves[:, H:]
+    opponents = moves[:, history_length:]
     return histories, opponents
 
 # STEP 2: Transformer policy

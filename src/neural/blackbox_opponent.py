@@ -34,6 +34,8 @@ class BlackBoxPredictor:
         for counts in self.evidence.values():
             counts *= self.forgetting
         for k in range(3):
+            if k > len(b_history):
+                continue
             key = tuple(b_history[-k:]) if k else ()
             if key not in self.evidence:
                 self.evidence[key] = np.zeros(3, dtype=float)
@@ -44,6 +46,8 @@ class BlackBoxPredictor:
         counts = self.evidence.get((), np.zeros(3))
         p = (counts + 1.0) / (counts.sum() + 3.0)
         for k in (1, 2):
+            if k > len(b_history):
+                break
             key = tuple(b_history[-k:])
             counts = self.evidence.get(key, np.zeros(3))
             # Shrink sparse conditional estimates toward their parent estimate.
@@ -53,7 +57,7 @@ class BlackBoxPredictor:
         return p
 
 
-def choose_blackbox_b(estimator, b_history, strategy):
+def choose_blackbox_b(estimator, b_history, strategy, return_plan=False):
     if strategy == 'blackbox_myopic':
         return int(np.argmax(PAYOFF_B_NP @ estimator.predict(b_history)))
     horizon = {'blackbox_plan2': 2, 'blackbox_plan3': 3}[strategy]
@@ -67,7 +71,8 @@ def choose_blackbox_b(estimator, b_history, strategy):
             simulated_history.append(b)
         if value > best_value:
             best_first, best_value = plan[0], value
-    return int(best_first)
+            best_plan = plan
+    return (best_first, best_plan, best_value) if return_plan else int(best_first)
 
 
 def run(strategy, lambda_swap, seed):

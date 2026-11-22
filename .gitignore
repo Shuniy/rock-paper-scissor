@@ -311,3 +311,9 @@ thumb
 sketch
 
 # End of https://www.toptal.com/developers/gitignore/api/react,nextjs,python,flask
+
+# Local simulation workspace
+frontend/node_modules/
+frontend/dist/
+outputs/lab_runs/
+output/playwright/
