@@ -1,5 +1,7 @@
+import asyncio
 import json
 from threading import Event
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -55,7 +57,6 @@ def test_live_round_stream_and_exports(client, exp, params):
 @pytest.fixture
 def ollama_mock(monkeypatch):
     calls = []
-    http_client = httpx.Client
 
     def server(request):
         if request.url.path == "/api/tags":
@@ -65,8 +66,12 @@ def ollama_mock(monkeypatch):
         raw = "I choose Rock and Paper" if len(calls) == 2 else "Paper"
         return httpx.Response(200, json={"message": {"content": raw}})
 
-    monkeypatch.setattr(llm, "httpx", type("ClientModule", (), {"HTTPError": httpx.HTTPError, "Timeout": httpx.Timeout,
-        "Client": staticmethod(lambda **kwargs: http_client(transport=httpx.MockTransport(server), **kwargs))}))
+    sync_client, async_client = httpx.Client, httpx.AsyncClient
+    monkeypatch.setattr(llm, "httpx", type("ClientModule", (), {
+        "HTTPError": httpx.HTTPError, "Timeout": httpx.Timeout,
+        "Client": staticmethod(lambda **kwargs: sync_client(transport=httpx.MockTransport(server), **kwargs)),
+        "AsyncClient": staticmethod(lambda **kwargs: async_client(transport=httpx.MockTransport(server), **kwargs)),
+    }))
     return calls
 
 
@@ -145,6 +150,167 @@ def test_cancellation_completes_current_unit_and_releases_worker(client, monkeyp
     types = [event["type"] for event in read_events(client, run)]
     assert types == ["started", "training", "cancelled"]
     assert client.get(f"/api/simulations/{run['id']}").json()["status"] == "cancelled"
+
+
+def test_cancel_queued_run_without_starting_computation(client, monkeypatch):
+    release = Event()
+    blocker = main.WORKER.submit(release.wait, 5)
+
+    def unexpected(*args):
+        pytest.fail("Queued simulation should never execute after cancellation.")
+
+    monkeypatch.setattr(main, "execute", unexpected)
+    try:
+        run = submit(client, "r1")
+        assert run["status"] == "queued"
+        assert client.post(f"/api/simulations/{run['id']}/cancel").json()["status"] == "cancelling"
+    finally:
+        release.set()
+    blocker.result(timeout=5)
+    assert [event["type"] for event in read_events(client, run)] == ["cancelled"]
+    assert client.post(f"/api/simulations/{run['id']}/cancel").json()["status"] == "cancelled"
+
+
+def test_restarts_from_last_checkpoint_and_exports_partial_results(tmp_path, monkeypatch):
+    live_path, restart_path = tmp_path / "live", tmp_path / "restart"
+    restart_path.mkdir()
+    reached, release = Event(), Event()
+    execute = main.execute
+
+    def pause_after_third_round(*args):
+        iterator = execute(*args)
+        try:
+            for _ in range(3):
+                yield next(iterator)
+            reached.set()
+            assert release.wait(timeout=5)
+            yield from iterator
+        finally:
+            iterator.close()
+
+    monkeypatch.setattr(main, "RUN_DIRECTORY", live_path)
+    monkeypatch.setattr(main, "CHECKPOINT_EVENTS", 2)
+    monkeypatch.setattr(main, "CHECKPOINT_SECONDS", 60)
+    monkeypatch.setattr(main, "execute", pause_after_third_round)
+    with TestClient(main.app) as client:
+        run = submit(client, "r2", rounds=4)
+        run_id = run["id"]
+        try:
+            assert reached.wait(timeout=5)
+            checkpoint = (live_path / f"{run_id}.partial").read_bytes()
+            assert json.loads(checkpoint)["completed_rounds"] == 2
+            (restart_path / f"{run_id}.partial").write_bytes(checkpoint)
+            (restart_path / "unfinished-write.tmp").write_text('{"events": [', encoding="utf-8")
+        finally:
+            release.set()
+        assert read_events(client, run)[-1]["type"] == "completed"
+        assert not (live_path / f"{run_id}.partial").exists()
+
+    monkeypatch.setattr(main, "RUN_DIRECTORY", restart_path)
+    with TestClient(main.app) as client:
+        assert client.get("/api/simulations").json()[0]["status"] == "interrupted"
+        assert client.get(f"/api/simulations/{run_id}").json()["completed_rounds"] == 2
+        data = client.get(f"/api/simulations/{run_id}/results").json()
+        assert data["summary"][0]["rounds"] == 2
+        assert [event["type"] for event in read_events(client, run)] == ["started", "round", "round", "interrupted"]
+        assert read_events(client, run, offset=4) == data["events"][-1:]
+        assert client.get(f"/api/simulations/{run_id}/export?format=json").json() == data
+        assert len(client.get(f"/api/simulations/{run_id}/export?format=csv").text.splitlines()) == 3
+        assert not (restart_path / f"{run_id}.partial").exists()
+    with TestClient(main.app) as client:
+        assert read_events(client, run) == data["events"]
+
+
+def test_shutdown_timeout_keeps_worker_occupied_until_cooperative_stop(tmp_path, monkeypatch):
+    entered, release = Event(), Event()
+
+    def in_flight(*args):
+        entered.set()
+        assert release.wait(timeout=5)
+        yield RunEvent(type="training", data={"condition": "Fit", "step": 1, "total": 2})
+
+    monkeypatch.setattr(main, "RUN_DIRECTORY", tmp_path)
+    monkeypatch.setattr(main, "SHUTDOWN_TIMEOUT", .05)
+    monkeypatch.setattr(main, "execute", in_flight)
+    try:
+        with TestClient(main.app) as client:
+            run = submit(client, "r1")
+            assert entered.wait(timeout=5)
+        assert main.get_run(run["id"])["status"] == "cancelling"
+        with TestClient(main.app) as client:
+            assert client.post("/api/simulations", json={"experiment_id": "r1"}).status_code == 409
+            release.set()
+            assert [event["type"] for event in read_events(client, run)] == ["started", "training", "cancelled"]
+    finally:
+        release.set()
+
+
+def test_shutdown_cancels_in_flight_ollama_request(tmp_path, monkeypatch):
+    started, disconnected = Event(), Event()
+    calls = 0
+    async_client = httpx.AsyncClient
+
+    async def server(request):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(200, json={"message": {"content": "Paper"}})
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            disconnected.set()
+
+    monkeypatch.setattr(main, "RUN_DIRECTORY", tmp_path)
+    monkeypatch.setattr(llm, "installed_models", lambda: {"available": True, "models": ["llama:test"]})
+    monkeypatch.setattr(llm.httpx, "AsyncClient",
+                        lambda **kwargs: async_client(transport=httpx.MockTransport(server), **kwargs))
+    with TestClient(main.app) as client:
+        run = submit(client, "l1", model="llama:test", rounds=3)
+        assert started.wait(timeout=5)
+    assert disconnected.is_set()
+    assert not main.ACTIVE
+    with TestClient(main.app) as client:
+        events = read_events(client, run)
+        assert [event["type"] for event in events] == ["started", "round", "cancelled"]
+        assert client.get(f"/api/simulations/{run['id']}/results").json()["completed_rounds"] == 1
+
+
+def test_listing_indexes_legacy_runs_and_skips_bad_or_missing_files(client, tmp_path, monkeypatch):
+    older = submit(client, "r1", rounds=2)
+    assert read_events(client, older)[-1]["type"] == "completed"
+    newer = submit(client, "r1", rounds=2)
+    assert read_events(client, newer)[-1]["type"] == "completed"
+    legacy = tmp_path / f"{older['id']}.json"
+    legacy.with_suffix(".meta").unlink()
+    invalid_json = tmp_path / f"{uuid4()}.json"
+    invalid_json.write_text("{", encoding="utf-8")
+    invalid_shape = tmp_path / f"{uuid4()}.json"
+    invalid_shape.write_text('{"events": []}', encoding="utf-8")
+    read_run_file = main.read_run_file
+    reads = []
+
+    def track_read(file):
+        reads.append(file)
+        return read_run_file(file)
+
+    monkeypatch.setattr(main, "read_run_file", track_read)
+    response = client.get("/api/simulations")
+    assert response.status_code == 200
+    assert [row["id"] for row in response.json()] == [newer["id"], older["id"]]
+    assert set(reads) == {legacy, invalid_json, invalid_shape}
+    assert all("events" not in row for row in response.json())
+
+    reads.clear()
+    invalid_json.unlink()
+    invalid_shape.unlink()
+    (tmp_path / f"{newer['id']}.json").unlink()
+    assert [row["id"] for row in client.get("/api/simulations").json()] == [older["id"]]
+    assert reads == []
+
+    legacy.write_text("[", encoding="utf-8")
+    assert client.get("/api/simulations").json() == []
+    assert reads == [legacy]
 
 
 def test_failed_run_is_persisted(client, monkeypatch):

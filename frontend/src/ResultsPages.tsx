@@ -153,11 +153,15 @@ export function incompatibility(selected: RunMeta[]) {
   if (rest.some(run => run.parameters.rounds !== first.parameters.rounds)) return 'The runs have different evaluation lengths. Choose the same number of scored rounds.';
   if (rest.some(run => (protocol[run.experiment_id] || run.experiment_id) !== (protocol[first.experiment_id] || first.experiment_id)))
     return 'The runs use different evaluation protocols or datasets.';
-  if (rest.some(run => run.parameters.warmup !== first.parameters.warmup)) return 'The runs have different warm-up lengths.';
-  if (first.experiment_id.startsWith('n') && rest.some(run => ['history_window', 'seed', 'evaluation_opponent']
-    .some(key => run.parameters[key] !== first.parameters[key])))
-    return 'The runs use different synthetic evaluation inputs. Match the seed, history length, and opponent type.';
   return '';
+}
+
+function configurationDifferences(selected: RunMeta[], experiments: Experiment[]) {
+  const [first, ...rest] = selected;
+  const keys = new Set(selected.flatMap(run => Object.keys(run.parameters)));
+  const fields = experiments.filter(exp => selected.some(run => run.experiment_id === exp.id)).flatMap(exp => exp.fields);
+  return [...keys].filter(key => rest.some(run => run.parameters[key] !== first.parameters[key]))
+    .map(key => (fields.find(field => field.key === key)?.label || key.replaceAll('_', ' ')).toLowerCase());
 }
 
 export function ComparePage({ experiments }: { experiments: Experiment[] }) {
@@ -176,6 +180,7 @@ export function ComparePage({ experiments }: { experiments: Experiment[] }) {
   }, []);
   const chosen = runs.filter(run => selected.includes(run.id));
   const invalid = incompatibility(chosen);
+  const differences = configurationDifferences(chosen, experiments);
   useEffect(() => {
     let live = true;
     setLoaded([]);
@@ -218,7 +223,9 @@ export function ComparePage({ experiments }: { experiments: Experiment[] }) {
     {invalid && <Notice>{invalid}</Notice>}
     {detailsLoading && <p role="status">Loading comparable run results…</p>}
     {traces.length >= 2 && <section className="compare-results">
-      <div className="archive-source"><p>These comparisons are descriptive. Matched seeds may still yield different adaptive trajectories.</p>
+      <div className="archive-source"><p>{differences.length ?
+        `Descriptive comparison. Run settings differ for ${differences.join(', ')}.` :
+        'Matched run parameters. Adaptive trajectories can still differ.'}</p>
         <div className="export-buttons"><button className="button secondary compact" onClick={() => downloadCsv('comparison.csv', exportRows)}><Download size={15}/> CSV</button>
           <button className="button secondary compact" onClick={() => download('comparison.json', JSON.stringify(traces, null, 2), 'application/json')}><Download size={15}/> JSON</button></div></div>
       <div className="filter-bar">{loaded.map((run, i) => <label key={run.id} className="inline-field">Run {i + 1} condition

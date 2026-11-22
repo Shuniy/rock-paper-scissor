@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Archive, BookOpen, ChevronRight, CircleStop, Download, FlaskConical, Play,
   RotateCcw, Settings2 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
+import type { SetURLSearchParams } from 'react-router-dom';
 import { active, api, exportUrl, rowsOf } from './api';
 import type { Experiment, Field, Parameters, Run, RunEvent, RunMeta, Stage, Value } from './api';
 import { Notice, PageHeading } from './UI';
@@ -29,7 +30,7 @@ function StageProgress({ events, meta }: { events: RunEvent[]; meta?: RunMeta })
   const total = meta?.total_rounds || 0;
   const calls = events.filter(e => e.type === 'round' || e.type === 'warmup').length;
   return <div className="run-progress" aria-live="polite">
-    <div><span><span className={`status-dot ${meta?.status === 'failed' ? 'error' : meta ? 'ready' : ''}`}/>{meta?.status === 'cancelling' ? 'Stopping after current work' :
+    <div><span><span className={`status-dot ${meta?.status === 'failed' || meta?.status === 'interrupted' ? 'error' : meta ? 'ready' : ''}`}/>{meta?.status === 'cancelling' ? 'Stopping after current work' :
       meta ? meta.status.charAt(0).toUpperCase() + meta.status.slice(1) : 'Awaiting configuration'}</span>
       <strong>{completed} / {total || '—'} scored rounds</strong></div>
     <progress max={total || 1} value={completed} aria-label="Completed evaluation rounds"/>
@@ -87,29 +88,14 @@ function Lesson({ exp }: { exp: Experiment }) {
 export function ExperimentPage({ exp }: { exp: Experiment }) {
   const [query, setQuery] = useSearchParams();
   const runId = query.get('run');
-  const [values, setValues] = useState<Parameters>(() => defaults(exp));
   const [models, setModels] = useState<Models>();
   const [checking, setChecking] = useState(false);
-  const [meta, setMeta] = useState<RunMeta>();
-  const [events, setEvents] = useState<RunEvent[]>([]);
-  const [result, setResult] = useState<Run>();
-  const [condition, setCondition] = useState('');
-  const [error, setError] = useState('');
-  const [reconnecting, setReconnecting] = useState(false);
-  const [requesting, setRequesting] = useState(false);
-  const [traceVersion, setTraceVersion] = useState(0);
   const isLlm = exp.category === 'llm';
-  const fields = visibleFields(exp, values);
-  const busy = requesting || active(meta?.status);
-  const validation = exp.id === 's6';
 
   async function refreshModels() {
     setChecking(true);
     try {
-      const available = await api<Models>('/ollama/models');
-      setModels(available);
-      setValues(current => ({...current, model: available.models.includes(String(current.model)) ?
-        current.model : available.models[0] || ''}));
+      setModels(await api<Models>('/ollama/models'));
     } catch (err) {
       setModels({available: false, models: [], message: (err as Error).message});
     } finally {
@@ -118,6 +104,37 @@ export function ExperimentPage({ exp }: { exp: Experiment }) {
   }
 
   useEffect(() => { if (isLlm) void refreshModels(); }, [isLlm]);
+
+  return <ExperimentRun key={runId} exp={exp} runId={runId} setQuery={setQuery}
+    models={models} checking={checking} refreshModels={refreshModels}/>;
+}
+
+function ExperimentRun({ exp, runId, setQuery, models, checking, refreshModels }: {
+  exp: Experiment; runId: string | null; setQuery: SetURLSearchParams;
+  models?: Models; checking: boolean; refreshModels: () => void;
+}) {
+  const [configuration, setValues] = useState<Parameters>(() => defaults(exp));
+  const [meta, setMeta] = useState<RunMeta>();
+  const [events, setEvents] = useState<RunEvent[]>([]);
+  const [result, setResult] = useState<Run>();
+  const [condition, setCondition] = useState('');
+  const [error, setError] = useState('');
+  const [reconnecting, setReconnecting] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+  const [traceVersion, setTraceVersion] = useState(0);
+  const mounted = useRef(false);
+  const isLlm = exp.category === 'llm';
+  const values = isLlm && !configuration.model && models?.models.length ?
+    {...configuration, model: models.models[0]} : configuration;
+  const fields = visibleFields(exp, values);
+  const busy = requesting || active(meta?.status) || (!!runId && !meta && !error);
+  const validation = exp.id === 's6';
+
+  // A start response may navigate, so invalidate its handler when this run leaves the page.
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   useEffect(() => {
     if (!runId) return;
@@ -141,6 +158,7 @@ export function ExperimentPage({ exp }: { exp: Experiment }) {
         setEvents(data.events);
         setReconnecting(false);
         if (data.status === 'failed') setError(data.message || 'Simulation failed.');
+        if (data.status === 'interrupted') setError(data.message || 'The simulation was interrupted.');
       } catch (err) {
         if (live) setError((err as Error).message);
       }
@@ -156,20 +174,24 @@ export function ExperimentPage({ exp }: { exp: Experiment }) {
         return;
       }
       stream = new EventSource(`/api/simulations/${runId}/events`);
-      stream.onopen = () => { if (live) setReconnecting(false); };
+      stream.onopen = () => { if (live && stream) setReconnecting(false); };
       stream.onmessage = event => {
-        if (!live) return;
+        if (!live || !stream) return;
         const next: RunEvent = JSON.parse(event.data);
         pending.push(next);
         if (timer === undefined) timer = window.setTimeout(flush, 50);
         if (next.type === 'started') setMeta(current => current?.status === 'queued' ? {...current, status: 'running'} : current);
-        if (next.type === 'completed' || next.type === 'cancelled' || next.type === 'failed') {
+        if (next.type === 'completed' || next.type === 'cancelled' || next.type === 'failed' || next.type === 'interrupted') {
           flush();
-          stream?.close();
+          stream.close();
+          stream = undefined;
+          setReconnecting(false);
+          const status = next.type;
+          setMeta(current => current && {...current, status});
           void finish();
         }
       };
-      stream.onerror = () => { if (live) setReconnecting(true); };
+      stream.onerror = () => { if (live && stream) setReconnecting(true); };
     }).catch(err => { if (live) setError((err as Error).message); });
     return () => { live = false; window.clearTimeout(timer); stream?.close(); };
   }, [runId, exp]);
@@ -182,15 +204,12 @@ export function ExperimentPage({ exp }: { exp: Experiment }) {
       const parameters = Object.fromEntries(fields.map(field => [field.key, values[field.key]]));
       const data = await api<RunMeta>('/simulations', {method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({experiment_id: exp.id, parameters})});
-      setMeta(data);
-      setCondition(data.conditions[0]);
-      setResult(undefined);
-      setEvents([]);
-      setQuery({run: data.id}, {replace: true});
+      if (mounted.current) setQuery({run: data.id}, {replace: true});
     } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setRequesting(false);
+      if (mounted.current) {
+        setError((err as Error).message);
+        setRequesting(false);
+      }
     }
   }
 
@@ -198,27 +217,23 @@ export function ExperimentPage({ exp }: { exp: Experiment }) {
     if (!meta || !active(meta.status)) return;
     try {
       const data = await api<RunMeta>(`/simulations/${meta.id}/cancel`, {method: 'POST'});
-      setMeta(current => current && active(current.status) ? data : current);
+      if (mounted.current) setMeta(current => current && active(current.status) ? data : current);
     } catch (err) {
-      setError((err as Error).message);
+      if (mounted.current) setError((err as Error).message);
     }
   }
 
   function reset() {
     setQuery({}, {replace: true});
-    setMeta(undefined);
-    setEvents([]);
-    setResult(undefined);
     setError('');
-    setReconnecting(false);
-    setCondition('');
-    setValues({...defaults(exp), ...(isLlm ? {model: models?.models[0] || ''} : {})});
+    setValues(defaults(exp));
     setTraceVersion(value => value + 1);
   }
 
   const rows = useMemo(() => rowsOf(events), [events]);
   const conditionRows = rows.filter(row => row.condition === condition);
-  const training = events.flatMap(event => event.type === 'training' && event.data.condition === condition ? [event.data as Stage] : []);
+  const training = events.flatMap(event => event.type === 'training' &&
+    (exp.id === 's5' || event.data.condition === condition) ? [event.data as Stage] : []);
   const availableConditions = meta?.conditions || [];
   const grouping = (name: string) => name.split(' · ').slice(0, -1).join(' · ');
   const comparable = validation || exp.id === 'l4' ?
@@ -269,7 +284,7 @@ export function ExperimentPage({ exp }: { exp: Experiment }) {
         {!!meta && meta.conditions.length > 1 && <label className="inline-field condition-picker">Condition
           <select value={condition} onChange={event => setCondition(event.target.value)}>{meta.conditions.map(name => <option key={name}>{name}</option>)}</select>
         </label>}
-        <Trace key={`${runId}-${condition}-${traceVersion}`} rows={conditionRows} game={exp.game} training={training}
+        <Trace key={`${condition}-${traceVersion}`} rows={conditionRows} game={exp.game} training={training}
           caption={exp.game === 'bait' ? 'General-sum game' : 'Zero-sum RPS'} activity={active(meta?.status)}
           summary={result?.summary.find(item => item.condition === condition)}/>
         {busy && <p className="playback-note">Playback controls affect the visualization. Stop interrupts execution at the next work boundary.</p>}

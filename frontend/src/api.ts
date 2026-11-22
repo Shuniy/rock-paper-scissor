@@ -16,11 +16,12 @@ export type Round = {
   frequency: number[]; policy?: number[]; phase?: string; history?: unknown[]; detail: Record<string, unknown>;
 };
 export type Stage = { condition: string; step: number; total: number; loss?: number; expected_a?: number; swap_surrogate?: number };
+type TerminalStatus = 'completed' | 'cancelled' | 'failed' | 'interrupted';
 export type RunEvent =
   | { type: 'round'; data: Round }
   | { type: 'warmup' | 'training'; data: Stage }
-  | { type: 'started' | 'completed' | 'cancelled' | 'failed'; data: { message?: string } };
-export type RunStatus = 'queued' | 'running' | 'cancelling' | 'completed' | 'cancelled' | 'failed';
+  | { type: 'started' | TerminalStatus; data: { message?: string } };
+export type RunStatus = 'queued' | 'running' | 'cancelling' | TerminalStatus;
 export type RunMeta = {
   id: string; experiment_id: string; game: string; parameters: Parameters; status: RunStatus;
   created_at: string; completed_rounds: number; total_rounds: number; model_calls: number | null;

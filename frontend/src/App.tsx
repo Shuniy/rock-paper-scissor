@@ -143,6 +143,7 @@ function NotFound() {
 export default function App() {
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [load, setLoad] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [connection, setConnection] = useState<'loading' | 'ready' | 'error'>('loading');
   const [version, setVersion] = useState(0);
   const [collapsed, setCollapsed] = useState(true);
   const [theme, setTheme] = useState(() => localStorage.getItem('lab-theme') || 'dark');
@@ -153,6 +154,32 @@ export default function App() {
       .catch(() => { if (live) setLoad('error'); });
     return () => { live = false; };
   }, [version]);
+  useEffect(() => {
+    let live = true;
+    let timer: number;
+    let timeout: number;
+    let controller: AbortController;
+    async function checkHealth() {
+      controller = new AbortController();
+      timeout = window.setTimeout(() => controller.abort(), 5000);
+      try {
+        const health = await api<{status: string}>('/health', {cache: 'no-store', signal: controller.signal});
+        if (live) setConnection(health.status === 'ok' ? 'ready' : 'error');
+      } catch {
+        if (live) setConnection('error');
+      } finally {
+        window.clearTimeout(timeout);
+        if (live) timer = window.setTimeout(checkHealth, 15000);
+      }
+    }
+    void checkHealth();
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, []);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('lab-theme', theme);
@@ -180,7 +207,7 @@ export default function App() {
         <p className="nav-label">ANALYSIS</p>
         {specialLinks.map(link => <NavLink key={link.href} to={link.href}><link.icon size={18}/><span>{link.title}</span></NavLink>)}
       </div>
-      <div className="sidebar-footer"><span className={`status-dot ${load}`}/><div><strong>{load === 'ready' ? 'Local lab online' : load === 'error' ? 'API unavailable' : 'Connecting to lab'}</strong><small>Runs on your machine</small></div></div>
+      <div className="sidebar-footer"><span className={`status-dot ${connection}`}/><div><strong>{connection === 'ready' ? 'Local lab online' : connection === 'error' ? 'API unavailable' : 'Connecting to lab'}</strong><small>Runs on your machine</small></div></div>
     </aside>
     <div className="workspace">
       <header className="topbar">

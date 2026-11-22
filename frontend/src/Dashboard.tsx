@@ -96,8 +96,12 @@ export function RoundCharts({ rows, game, training = [] }: { rows: Round[]; game
       [`q${i}`, Array.isArray(r.detail.prediction) ? r.detail.prediction[i] : undefined],
     ]))}));
   const series = (...keys: string[]) => keys.map(key => ({key, name: label(key)}));
-  const train = training.filter(row => row.loss != null);
-  const trainingSeries = ['loss', 'expected_a', 'swap_surrogate'].filter(key => train.some(row => Object.hasOwn(row, key)));
+  const stages = new Map<string, Stage[]>();
+  for (const event of training) {
+    const stage = stages.get(event.condition);
+    if (stage) stage.push(event);
+    else stages.set(event.condition, [event]);
+  }
   const extraSeries = extras.filter(key => key !== 'dynamic_regret');
   return <div className="chart-grid">
     <Chart title="Cumulative reward" data={chartRows} x="round" series={series('cumulative_a', 'cumulative_b')}/>
@@ -109,7 +113,12 @@ export function RoundCharts({ rows, game, training = [] }: { rows: Round[]; game
     {rows.some(row => Array.isArray(row.detail.prediction)) && <Chart title={rows.some(row => row.detail.predicted_action) ? 'Predicted B actions' : 'Predicted A actions'}
       data={chartRows} x="round" series={actions.map((name, i) => ({name, key: `q${i}`}))}/>}
     {extraSeries.length > 0 && <Chart title="Experiment metrics" data={chartRows} x="round" series={series(...extraSeries)}/>}
-    <Chart title="Training progress" data={train} x="step" xLabel="Iteration" series={series(...trainingSeries)}/>
+    {[...stages].map(([name, steps]) => {
+      const metrics = ['loss', 'expected_a', 'swap_surrogate'].filter(key => steps.some(row => Object.hasOwn(row, key)));
+      return <Chart key={name} title={`Training progress · ${name}`} x="step" xLabel="Iteration"
+        data={metrics.length ? steps : steps.map(row => ({...row, percent: 100 * row.step / row.total}))}
+        series={metrics.length ? series(...metrics) : [{key: 'percent', name: 'Completion (%)'}]}/>;
+    })}
   </div>;
 }
 
@@ -232,7 +241,7 @@ export function Trace({ rows, game, caption, training = [], summary, activity, s
       </select>
     </div>
     <PhaseTimeline rows={available} selected={selected?.round} seek={seek}/>
-    {(!available.length && !training.some(stage => stage.loss != null)) && <div className="empty-charts"><ChartNoAxesCombined size={23}/>
+    {(!available.length && !training.length) && <div className="empty-charts"><ChartNoAxesCombined size={23}/>
       <span>{rows.length ? 'Play or step through the recorded rounds to reveal the charts.' : 'Play an experiment to see reward, regret, and action charts.'}</span></div>}
     <RoundCharts rows={available} game={game} training={training}/>
     {summary && cursor >= rows.length && rows.length > 0 && <DataTable title="Condition summary" rows={[summary]}/>}
