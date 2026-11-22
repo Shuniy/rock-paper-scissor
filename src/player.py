@@ -7,8 +7,10 @@ class Player:
         self.actions = ACTIONS
         self.action = None
 
-    def choose_action(self, action=None, probabilities=None):
+    def choose_action(self, action=None, probabilities=None, rng=None):
         if action is not None:
             return action
-        return RNG.choice(self.actions, p=probabilities)
+        if rng is None:
+            rng = RNG
+        return rng.choice(self.actions, p=probabilities)
 

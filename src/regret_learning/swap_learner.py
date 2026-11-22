@@ -3,6 +3,28 @@ from src.player import Player
 from src.constants import ACTIONS, ACTION
 import numpy as np
 
+
+def stationary_distribution(P):
+    # Use off-diagonal probabilities directly to avoid cancellation
+    # when P[i, i] is near 1, then scale each nonzero balance equation.
+    balance = P.T.copy()
+    np.fill_diagonal(balance, 0.0)
+    np.fill_diagonal(balance, -balance.sum(axis=0))
+    scale = np.max(np.abs(balance), axis=1, keepdims=True)
+    np.divide(balance, scale, out=balance, where=scale > 0)
+
+    # Add sum(pi) = 1. Least squares also handles rank deficiency from softmax underflow.
+    system = np.vstack((balance, np.ones(P.shape[0])))
+    target = np.zeros(P.shape[0] + 1)
+    target[-1] = 1.0
+    pi = np.linalg.lstsq(system, target, rcond=None)[0]
+    pi = np.maximum(pi, 0.0)
+    pi /= pi.sum()
+    if not np.allclose(pi @ P, pi, rtol=0.0, atol=1e-12):
+        raise ValueError("Could not compute a stationary distribution")
+    return pi
+
+
 class SwapLearnerGame:
     def __init__(self, player_a_name = "Alice", player_b_name = "Bob"):
         self.player_a = Player(player_a_name)
@@ -22,10 +44,7 @@ class SwapLearnerGame:
         return transition_matrix
 
     def get_stationary_distribution(self, P, rounds):
-        pi = np.ones(P.shape[0]) / P.shape[0]  # Start with uniform distribution
-        for _ in range(rounds):
-            pi = pi @ P  # Update the distribution by multiplying with the transition matrix
-        return pi
+        return stationary_distribution(P)
 
 
     def experiment(self, rounds=100, verbose=False):
@@ -194,4 +213,3 @@ class SwapLearnerGame:
             swap_regret_b += improvement_b
         print("\nSwap regret for Player A after all rounds:", swap_regret_a)
         print("Swap regret for Player B after all rounds:", swap_regret_b)
-            

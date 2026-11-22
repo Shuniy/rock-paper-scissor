@@ -17,15 +17,16 @@ class SwapRegretGame:
         self.fixed_rewards_b = np.zeros(len(ACTIONS))
 
     def play_history(self, rounds=100, verbose=False):
+        """Replay the four recorded rounds. Keep rounds for existing callers."""
         for a, b in zip(self.history_a, self.history_b):
             self.player_a.action = a
             self.player_b.action = b
             round_number, action_a, action_b, reward_a, reward_b = self.game.play_round()
             if verbose:
-                print(f"Round {self.game.rounds_played + 1}: {self.player_a.name} chose {a}, {self.player_b.name} chose {b}.")
+                print(f"Round {round_number}: {self.player_a.name} chose {a}, {self.player_b.name} chose {b}.")
 
-        print(f"Total reward for {self.player_a.name} after {rounds} rounds: {self.player_a.score}")
-        print(f"Total reward for {self.player_b.name} after {rounds} rounds: {self.player_b.score}")
+        print(f"Total reward for {self.player_a.name} after {self.game.rounds_played} rounds: {self.player_a.score}")
+        print(f"Total reward for {self.player_b.name} after {self.game.rounds_played} rounds: {self.player_b.score}")
 
         for action in ACTIONS:
             for a, b in zip(self.history_a, self.history_b):

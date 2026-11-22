@@ -1,12 +1,10 @@
 """Step 2: paired-seed evaluation of reward vs swap-regularized online transformer.
 
-Place next to online_transformer_rps_model_mismatch.py (previous project script).
-
 Smoke test:
-    SEEDS=2 STRATEGIES=uniform,myopic python3 step2_neural_swap_validation.py
+    SEEDS=2 STRATEGIES=uniform,myopic python3 -m src.neural.neural_swap_validation
 
 Main test:
-    SEEDS=20 STRATEGIES=uniform,myopic,plan2 python3 step2_neural_swap_validation.py
+    SEEDS=20 STRATEGIES=uniform,myopic,plan2 python3 -m src.neural.neural_swap_validation
 
 Metrics are per-round averages over each full episode. Bootstrap CIs use
 seed pairs, not individual game rounds, as independent observational units.
@@ -91,3 +89,7 @@ def neural_swap_validation():
     print('The lambda treatments change B and A trajectories; pairing matches initial seeds, not opponent histories.')
     print('Swap loss is a short-memory surrogate, NOT a no-swap-regret guarantee.')
     print('Regret here uses fixed recorded opponent actions (not causal policy regret).')
+
+
+if __name__ == "__main__":
+    neural_swap_validation()

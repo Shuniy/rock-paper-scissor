@@ -191,7 +191,7 @@ def evaluate_episode(emulator, lam, seed, strategy):
         tokens.append(3 * b + a)
         memory = update_a(
             a_model, memory, torch.tensor(history, dtype=torch.long),
-            b, lam, learning_rate=learning_rate
+            b, lam, learning_rate=LR
         )
         history = (history + [b])[-HISTORY:]
 

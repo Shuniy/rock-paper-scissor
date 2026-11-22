@@ -3,10 +3,10 @@
 Local Ollama only, no model downloads or fine-tuning.
 
 Quick smoke test:
-    MODELS=llama3.1:8b PREFIXES=1 ROUNDS=8 python3 step1_controlled_ollama_rps.py
+    MODELS=llama3.1:8b PREFIXES=1 ROUNDS=8 python3 -m src.llm.controlled_ollama_rps
 
 Both models:
-    MODELS=llama3.1:8b,qwen3.5:latest PREFIXES=4 ROUNDS=18 python3 step1_controlled_ollama_rps.py
+    MODELS=llama3.1:8b,qwen3.5:latest PREFIXES=4 ROUNDS=18 python3 -m src.llm.controlled_ollama_rps
 
 Requirements: numpy, running local Ollama with model(s) already installed.
 All B decisions use only past public actions, never A's current action.
@@ -196,3 +196,6 @@ def rps_controlled_ollama():
     print('Matched deterministic prefixes are not independent random samples of LLM behaviour.')
     print('Bait causal claims require replication across varied prefixes/prompts and controls.')
 
+
+if __name__ == "__main__":
+    rps_controlled_ollama()

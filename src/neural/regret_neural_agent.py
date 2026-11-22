@@ -27,7 +27,7 @@ class RegretOpponentPredictorGame(nn.Module):
         self.train_data = make_batch(n=256, history_length=5)
         self.test_data = make_batch(n=256, history_length=5)
 
-    def train(self, epochs=1000):
+    def fit(self, epochs=1000):
         self.model = train_model(self.model, self.train_data, self.optimizer, self.criterion, epochs=epochs)
 
     def evaluate(self):
@@ -35,7 +35,7 @@ class RegretOpponentPredictorGame(nn.Module):
         return results
 
     def train_and_evaluate(self, rounds=100):
-        self.train(epochs=rounds)
+        self.fit(epochs=rounds)
         stats = self.evaluate()
         print(f"Results after {rounds} rounds:")
         for metric, value in stats.items():

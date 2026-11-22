@@ -11,14 +11,16 @@ T = 30      # Rounds per episode
 rng = torch.Generator().manual_seed(SEED)  # For reproducibility
 
 # STEP 1: Generate complete game episodes
-def generate_episodes(batch):
+def generate_episodes(batch, generator=None):
+    if generator is None:
+        generator = rng
     length = H + T
     # Generate random moves for both players
-    random_moves = torch.randint(0, 3, (batch, length), generator=rng)
+    random_moves = torch.randint(0, 3, (batch, length), generator=generator)
     # Generate random favorite actions for player A
-    favorite = torch.randint(0, 3, (batch, 1), generator=rng)
+    favorite = torch.randint(0, 3, (batch, 1), generator=generator)
     # Generate random phases for each episode
-    phase = torch.randint(0, 3, (batch, 1), generator=rng)  # 0 for phase 1, 1 for phase 2
+    phase = torch.randint(0, 3, (batch, 1), generator=generator)  # 0 for phase 1, 1 for phase 2
     t = torch.arange(length)[None, :]
     # Four opponent behaviours
     mode = (torch.arange(batch) % 4)[:, None]
@@ -37,7 +39,7 @@ def generate_episodes(batch):
     # Follow the pattern 85% of the time.
     # Mode 3 uses uniformly random actions.
     follow = (
-        (torch.rand(batch, length, generator=rng) < 0.85)
+        (torch.rand(batch, length, generator=generator) < 0.85)
         & (mode != 3)
     )
 
@@ -141,6 +143,7 @@ def calculate_metrics(probabilities, opponent_actions):
 def train_model(lambda_swap):
 
     torch.manual_seed(42)
+    training_rng = torch.Generator().manual_seed(SEED)
 
     model = TinyTransformer()
 
@@ -152,7 +155,7 @@ def train_model(lambda_swap):
 
         model.train()
 
-        histories, opponent_actions = generate_episodes(batch=32)
+        histories, opponent_actions = generate_episodes(batch=32, generator=training_rng)
 
         # Shape [32, 30, 5] -> [960, 5]
         x = histories.reshape(-1, H)
@@ -192,7 +195,8 @@ def evaluate(model):
 
     with torch.no_grad():
 
-        histories, opponent_actions = generate_episodes(batch=200)
+        evaluation_rng = torch.Generator().manual_seed(SEED + 1)
+        histories, opponent_actions = generate_episodes(batch=200, generator=evaluation_rng)
 
         probabilities = model(
             histories.reshape(-1, H)
@@ -386,7 +390,8 @@ def experiment_swap_b():
     reward_model = train_model(lambda_swap=0.0)
     swap_model = train_model(lambda_swap=1.0)
 
-    histories, opponents = generate_episodes(batch=200)
+    evaluation_rng = torch.Generator().manual_seed(SEED + 1)
+    histories, opponents = generate_episodes(batch=200, generator=evaluation_rng)
 
     # Shared random numbers for action sampling
     sample_rng = torch.Generator().manual_seed(123)

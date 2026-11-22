@@ -142,6 +142,7 @@ def calculate_metrics(probabilities, opponent_actions):
 def train_model(lambda_swap):
 
     torch.manual_seed(42)
+    training_rng = torch.Generator().manual_seed(SEED)
 
     model = TinyTransformer()
 
@@ -153,7 +154,7 @@ def train_model(lambda_swap):
 
         model.train()
 
-        histories, opponent_actions = generate_episodes(batch=32)
+        histories, opponent_actions = generate_episodes(batch=32, generator=training_rng)
 
         # Shape [32, 30, 5] -> [960, 5]
         x = histories.reshape(-1, H)
@@ -193,7 +194,8 @@ def evaluate(model):
 
     with torch.no_grad():
 
-        histories, opponent_actions = generate_episodes(batch=200)
+        evaluation_rng = torch.Generator().manual_seed(SEED + 1)
+        histories, opponent_actions = generate_episodes(batch=200, generator=evaluation_rng)
 
         probabilities = model(
             histories.reshape(-1, H)
@@ -296,7 +298,8 @@ def experiment_swap_b():
     reward_model = train_model(lambda_swap=0.0)
     swap_model = train_model(lambda_swap=1.0)
 
-    histories, opponents = generate_episodes(batch=200)
+    evaluation_rng = torch.Generator().manual_seed(SEED + 1)
+    histories, opponents = generate_episodes(batch=200, generator=evaluation_rng)
 
     # Shared random numbers for action sampling
     sample_rng = torch.Generator().manual_seed(123)

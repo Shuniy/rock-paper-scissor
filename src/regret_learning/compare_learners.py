@@ -2,7 +2,8 @@ from typing import Literal
 
 from src.game import Game
 from src.player import Player
-from src.constants import ACTIONS, ACTION
+from src.constants import ACTIONS, ACTION, SEED
+from src.regret_learning.swap_learner import stationary_distribution
 from src.rock_paper_scissors import RockPaperScissors
 import numpy as np
 
@@ -26,7 +27,8 @@ class CompareLearners:
         self.hedge_weights_b = np.ones(len(ACTIONS))  # Hedge weights for Player B
 
     @staticmethod
-    def results(rounds=100, verbose=False):
+    def results(rounds=100, verbose=False, seed=SEED):
+        """Pair random draws in self-play. Adaptive opponent histories can differ."""
         # Separate, fresh players and game for Hedge
         hedge_experiment = CompareLearners()
 
@@ -37,23 +39,25 @@ class CompareLearners:
             "hedge": hedge_experiment.play(
                 algorithm="hedge",
                 rounds=rounds,
-                verbose=verbose
+                verbose=verbose,
+                rng=np.random.default_rng(seed)
             ),
             "swap": swap_experiment.play(
                 algorithm="swap",
                 rounds=rounds,
-                verbose=verbose
+                verbose=verbose,
+                rng=np.random.default_rng(seed)
             )
         }
 
-    def play(self, algorithm: Literal["hedge", "swap"], rounds=100, verbose=False):
+    def play(self, algorithm: Literal["hedge", "swap"], rounds=100, verbose=False, rng=None):
         if algorithm == "hedge":
             for step in range(rounds):
                 probabilities_a = self.hedge_weights_a / sum(self.hedge_weights_a)
                 probabilities_b = self.hedge_weights_b / sum(self.hedge_weights_b)
 
-                self.player_a.action = self.player_a.choose_action(probabilities=probabilities_a)
-                self.player_b.action = self.player_b.choose_action(probabilities=probabilities_b)
+                self.player_a.action = self.player_a.choose_action(probabilities=probabilities_a, rng=rng)
+                self.player_b.action = self.player_b.choose_action(probabilities=probabilities_b, rng=rng)
 
                 round_number, action_a, action_b, reward_a, reward_b = self.game.play_round()
                 all_rewards_a = self.payoff_matrix_a[:, ACTIONS.index(action_b)]
@@ -118,8 +122,8 @@ class CompareLearners:
                 probabilities_a = self.get_stationary_distribution(transition_matrix_a, rounds=rounds)
                 probabilities_b = self.get_stationary_distribution(transition_matrix_b, rounds=rounds)
 
-                self.player_a.action = self.player_a.choose_action(probabilities=probabilities_a)
-                self.player_b.action = self.player_b.choose_action(probabilities=probabilities_b)
+                self.player_a.action = self.player_a.choose_action(probabilities=probabilities_a, rng=rng)
+                self.player_b.action = self.player_b.choose_action(probabilities=probabilities_b, rng=rng)
 
                 round_number, action_a, action_b, reward_a, reward_b = self.game.play_round()
 
@@ -222,8 +226,4 @@ class CompareLearners:
         return transition_matrix
 
     def get_stationary_distribution(self, P, rounds):
-        pi = np.ones(P.shape[0]) / P.shape[0]  # Start with uniform distribution
-        for _ in range(rounds):
-            pi = pi @ P  # Update the distribution by multiplying with the transition matrix
-        return pi
-    
+        return stationary_distribution(P)

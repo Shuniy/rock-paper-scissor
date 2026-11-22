@@ -21,7 +21,6 @@ from src.neural.strategic_swap_regret_transformer import experiment_c
 from src.neural.learning_aware_opponent import play_experiment
 from src.neural.rps_learning_update_ablation import rps_learning_update_ablation
 from src.neural.neural_swap_validation import neural_swap_validation
-from src.llm.rps_ollama_baseline import rps_pretrained_llm_baseline
 
 from src.constants import ACTION
 import torch
@@ -74,7 +73,7 @@ def checking_regret_learning():
     
     print("\nSwap Regret Game with Player a and b:")
     swap_regret_game = SwapRegretGame()
-    swap_regret_game.play_history(rounds=100, verbose=False)
+    swap_regret_game.play_history(verbose=False)
     
     print("\nSwap Learner Game with Player a and b using paper 1 round:")
     swap_learner_game = SwapLearnerGame()
@@ -95,8 +94,8 @@ def checking_regret_learning():
     print("\nSwap Learner Game vs Hedge Game with Player a and b:")
     comparison_result = CompareLearners.results(rounds=1000, verbose=False)
     print("\nComparison Result:")
-    for player, stats in comparison_result.items():
-        print(f"Player {player}:")
+    for algorithm, stats in comparison_result.items():
+        print(f"{algorithm}:")
         for metric, value in stats.items():
             print(f"  {metric}: {value}")
 
@@ -163,27 +162,8 @@ def blackbox():
     print("\nRPS black-box expected rollouts with neural agent")
     rps_blackbox_expected_rollouts()
 
-def check_llm():
-    # print("\nRPS pretrained LLM baseline with neural agent")
-    # rps_pretrained_llm_baseline()
-
-    # print("\nRPS Ollama bait/switch baseline with neural agent")
-    # from src.llm.rps_ollama_bait_switch import rps_ollama_bait_switch
-    # rps_ollama_bait_switch()
-
-    # print("\nRPS Ollama adaptive bait/switch baseline with neural agent")
-    # from src.llm.rps_ollama_adaptive_bait import rps_ollama_adaptive_bait
-    # rps_ollama_adaptive_bait()
-
-    # print("\nRPS Ollama bait causality baseline with neural agent")
-    # from src.llm.rps_ollama_bait_causality import rps_ollama_bait_causality
-    # rps_ollama_bait_causality()
-
-    # print("\nRPS controlled Ollama baseline with neural agent")
-    # from src.llm.controlled_ollama_rps import rps_controlled_ollama
-    # rps_controlled_ollama()
-
-    print("\nNeural swap validation with neural agent")
+def check_neural_swap_validation():
+    print("\nNeural swap validation")
     neural_swap_validation()
 
 def main():
@@ -191,7 +171,7 @@ def main():
     # check_neural()
     # check_exploitability()
     # blackbox()
-    check_llm()
+    check_neural_swap_validation()
 
 if __name__ == "__main__":
     main()

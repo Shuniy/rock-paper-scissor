@@ -2,7 +2,7 @@
 
 Usage:
     ollama ls
-    OLLAMA_MODEL=llama3.2:3b python3 rps_ollama_baseline.py
+    OLLAMA_MODEL=llama3.2:3b python3 -c 'from src.llm.rps_ollama_baseline import rps_pretrained_llm_baseline; rps_pretrained_llm_baseline()'
 
 Use a model name from `ollama ls`. Ollama must be running locally.
 """
@@ -101,9 +101,9 @@ def choose_a(history, use_history, rng):
             "Check that Ollama is running and that this model appears in `ollama ls`."
         ) from exc
 
-    match = re.search(r"\b(rock|paper|scissors)\b", text, re.I)
-    if match:
-        return ACTIONS.index(match.group(1).capitalize()), text, False
+    words = re.findall(r"\b(rock|paper|scissors)\b", text, re.I)
+    if len(words) == 1:
+        return ACTIONS.index(words[0].capitalize()), text, False
     return int(rng.integers(3)), text, True
 
 

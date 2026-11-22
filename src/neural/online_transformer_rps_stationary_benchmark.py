@@ -217,6 +217,7 @@ def online_transformer_rps_stationary_benchmark():
             'uniform_mix': ('mixed', (1/3, 1/3, 1/3)),
             'best_grid_mix': ('mixed', q_star),
             'myopic': ('myopic', None),
+            'plan3': ('plan3', None),
         }
         print(f'{"B strategy":<16} {"B expected":>11} {"B realized":>11} '
               f'{"A ext":>9} {"A swap":>9} {"A entropy":>10}')
@@ -233,11 +234,9 @@ def online_transformer_rps_stationary_benchmark():
                 f'{mean_metric(records, "a_entropy"):10.3f}'
             )
 
-        # Use previous exact Planner-3 results on the same seeds as a reference.
-        old_planner = 0.306 if lam == 0.0 else 0.519
-        print(f'Previous Planner-3 B expected on these same five seeds: {old_planner:.3f}')
+        planner_expected = mean_metric(results['plan3'], 'expected_b')
         print(f'Planner-3 minus held-out best-grid mixture: '
-              f'{old_planner - mean_metric(results["best_grid_mix"], "expected_b"):+.3f}')
+              f'{planner_expected - mean_metric(results["best_grid_mix"], "expected_b"):+.3f}')
 
     print('\nNote: best_grid_mix is optimal only among 15 candidate distributions '
           'on the tuning seeds, NOT globally optimal stationary play.')

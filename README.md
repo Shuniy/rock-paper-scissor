@@ -192,7 +192,7 @@ We also inspected Hedge's final action weights, SwapMW's row log-weights, transi
 
 **Observation:** Both algorithms generated valid zero-sum payoffs. Neither can be declared superior from these runs: Hedge played against Hedge while SwapMW played against SwapMW, creating **different opponent trajectories**. Low finite-horizon regret in an individual run is not a proof of asymptotic no-regret.
 
-**Code artifact:** `compare_learners_payoffs.py`, with changes documented in `compare_learners_payoffs.patch`. This class relies on the original project's `src/` modules.
+**Code:** `src/regret_learning/compare_learners.py`.
 
 ---
 
@@ -329,7 +329,7 @@ To make manipulation unambiguous, we first used two actions for A (`X`, `Y`) and
 
 **Observed mechanism:** B intentionally paid an immediate cost to alter A's future policy, then benefited by exploiting that change. This is the project's clearest positive demonstration of **learning-aware manipulation**; the game was expressly designed to make it possible.
 
-**Code:** `learning_aware_opponent_step2.py`.
+**Code:** `src/neural/learning_aware_opponent.py`.
 
 ### Step P2.2 — Replace Hedge with an online neural learner and Transformer
 
@@ -345,7 +345,7 @@ The online Transformer experiment used a four-move history, a six-observation tr
 
 **Answer:** Anticipating gradient updates can provide strategic benefit in a favourable constructed game. It does **not** prove this advantage in general-sum games or RPS.
 
-**Code:** `online_transformer_planner.py`.
+**Code:** `src/neural/online_neural_learning.py`, `src/neural/online_transformer_planner.py`.
 
 ### Step P2.3 — Frozen Transformer versus immediate and multi-step planning
 
@@ -371,7 +371,7 @@ A preliminary three-seed, 20-round comparison produced:
 
 **Answer:** Online neural adaptation is not enough to make a longer-horizon planner universally preferable. The short-horizon planner was only marginally better against reward-only A and worse against swap-regularized A.
 
-**Code:** `online_transformer_rps_planner.py`.
+**Code:** `src/neural/strategic_online_transformer_planner.py`.
 
 ### Step P2.5 — Compare horizons and simple baselines
 
@@ -388,7 +388,7 @@ Fixed pure RPS actions were heavily punished (B reward roughly `−0.86` to `−
 
 The swap-regularized learner often had more concentrated action probabilities (e.g. normalized entropy `0.656` vs `0.911` against myopic B), which may partly explain exploitability; that mechanism was **not causally isolated**.
 
-**Code:** `online_transformer_rps_horizon_compare.py`.
+**Code:** `src/neural/horizon_strategic_online_transformer_planner.py`.
 
 ### Step P2.6 — Model mismatch: what if B is wrong about A?
 
@@ -405,7 +405,7 @@ A's real update rate stayed at `0.24`; B's planner was told an exact, half, doub
 
 The “no weight updates” planner performed worse than the exact planner in both settings, suggesting that forecasting weight changes is useful. But *inaccurate* models sometimes beat the exact model over a longer episode because short-horizon planning need not optimize the full game.
 
-**Code:** `online_transformer_rps_model_mismatch.py`.
+**Code:** `src/neural/online_transformer_rps_model_mismatch.py`.
 
 ### Step P2.7 — Ablation: isolate the effect of gradient updates
 
@@ -422,7 +422,7 @@ For example, in the first `λ=1` planner round, A's same-next-history policy cha
 
 **Answer:** Neural weight updates matter independently of history changes. This does not by itself show that B deliberately selected the action *because of* that effect.
 
-**Code:** `rps_learning_update_ablation.py`.
+**Code:** `src/neural/rps_learning_update_ablation.py`.
 
 ### Step P2.8 — Stationary mixed-strategy benchmark
 
@@ -437,7 +437,7 @@ We searched **15** stationary mixtures on a coarse grid (`0.25` increments), cho
 
 **Answer:** The adaptive opponents outperformed the stationary candidates tested. This supports the value of **adaptivity**, not necessarily the incremental value of **learning-aware planning**. Our coarse-grid mixture is not the globally optimal stationary commitment.
 
-**Code:** `online_transformer_rps_stationary_benchmark.py`.
+**Code:** `src/neural/online_transformer_rps_stationary_benchmark.py`.
 
 ### Step P2.9 — Black-box opponent: learn from observed actions
 
@@ -453,7 +453,7 @@ We removed B's access to A's current probabilities, weights, gradients, and lear
 
 Black-box opponents earned positive reward but remained well below a privileged oracle. Prediction total-variation errors were substantial (roughly `0.4` for the adaptive black-box methods). A longer planning horizon did not help.
 
-**Code:** `rps_blackbox_opponent.py`.
+**Code:** `src/neural/blackbox_opponent.py`.
 
 ### Step P2.10 — Black-box GRU dynamics model
 
@@ -480,7 +480,7 @@ On five held-out seeds (25 rounds each):
 
 **Observation:** Two-step planning helped against `λ=1` in this small study, but deeper planning hurt and the learned model was still much weaker than the oracle.
 
-**Code:** `rps_blackbox_dynamics.py`.
+**Code:** `src/neural/rps_blackbox_dynamics.py`.
 
 ### Step P2.11 — MAP versus probability-weighted rollouts
 
@@ -496,7 +496,7 @@ The initial GRU planner predicted only the *most likely* future A action (MAP). 
 
 **Answer:** More accurate *integration under a misspecified model* does not ensure better performance against the true learner. Rollout model errors can compound with planning depth.
 
-**Code:** `rps_blackbox_expected_rollouts.py`.
+**Code:** `src/neural/rps_blackbox_expected_rollouts.py`.
 
 ### Project 2 (neural) takeaway
 
@@ -522,7 +522,7 @@ The first local Ollama run used a model reported by the script as `llama3.2` (no
 
 The no-history condition demonstrated predictable repeated outputs from deterministic decoding. The history condition changed outputs but **did not** demonstrate LLM weight training.
 
-**Code:** `rps_ollama_baseline.py` (also an alternative Hugging Face inference script `rps_pretrained_llm_baseline.py`).
+**Code:** `src/llm/rps_ollama_baseline.py`.
 
 ### Step L2 — Fixed and reactive bait-and-switch
 
@@ -539,7 +539,7 @@ In reactive baiting, B waited until it saw two consecutive Papers, then tried Sc
 
 **Observation:** Reactive switching improved on the costly fixed schedule, but remained worse than the ordinary adaptive baseline. A frequently chose Paper even against uniform B; therefore its Paper preference might not have been **caused** by Rock baiting.
 
-**Code:** `rps_ollama_bait_switch.py`, `rps_ollama_adaptive_bait.py`.
+**Code:** `src/llm/rps_ollama_bait_switch.py`, `src/llm/rps_ollama_adaptive_bait.py`.
 
 ### Step L3 — Compare immediate exploitation with baiting
 
@@ -554,7 +554,7 @@ We shared a two-round warm-up and compared Always Scissors, Rock ×2 then Scisso
 
 Longer Rock baiting coincided with a higher later Paper rate, but it remained unprofitable overall. This **did not** causally establish profitable manipulation.
 
-**Code:** `rps_ollama_bait_causality.py`.
+**Code:** `src/llm/rps_ollama_bait_causality.py`.
 
 ### Step L4 — Final controlled LLM comparison (two model families)
 
@@ -590,11 +590,11 @@ We compared `llama3.1:8b` and `qwen3.5:latest`, with:
 - Llama 3.1: four-Rock baiting increased B reward by `+0.167/round` and later Paper frequency by `+12.5 percentage points`, but B's total result stayed negative.
 - Qwen3.5: four-Rock baiting increased B reward by `+0.292/round` but later Paper frequency only by `+6.25 points`.
 
-**Crucial round-level finding (verified from `rounds.csv`):** In Qwen's four-Rock condition, B earned **`+0.750` per bait round** (8 total bait rounds across both prefixes) and just **`+0.0625` per Scissors exploit round** (16 exploit rounds). The supposed “bait” was already profitable because Qwen frequently chose Scissors. Consequently, higher cumulative B reward **does not establish** that B paid a cost to induce and exploit Paper.
+**Crucial round-level finding (verified from `outputs/ollama_rps_results/rounds.csv`):** In Qwen's four-Rock condition, B earned **`+0.750` per bait round** (8 total bait rounds across both prefixes) and just **`+0.0625` per Scissors exploit round** (16 exploit rounds). The supposed “bait” was already profitable because Qwen frequently chose Scissors. Consequently, higher cumulative B reward **does not establish** that B paid a cost to induce and exploit Paper.
 
 The two initial warm-ups were matched **within each model**, not across Llama and Qwen. Two deterministic prefixes cannot establish model-wide rankings or independent-sample statistics.
 
-**Code and data:** `step1_controlled_ollama_rps.py`, `episodes.csv`, `rounds.csv`.
+**Code and data:** `src/llm/controlled_ollama_rps.py`, `outputs/ollama_rps_results/episodes.csv`, `outputs/ollama_rps_results/rounds.csv`.
 
 ### LLM takeaway
 
@@ -606,7 +606,7 @@ The local LLM experiments demonstrated predictable action biases, useful in-cont
 
 ### Final Step 1 — Controlled Ollama experiments
 
-The final LLM outcomes are documented in **Step L4** above and in `episodes.csv` / `rounds.csv`. The controlled question was whether baiting improves later Paper frequency **and** B's total reward beyond a no-bait commitment. Results were mixed and provided alternative explanations, especially for Qwen.
+The final LLM outcomes are documented in **Step L4** above and in `outputs/ollama_rps_results/episodes.csv` and `outputs/ollama_rps_results/rounds.csv`. The controlled question was whether baiting improves later Paper frequency **and** B's total reward beyond a no-bait commitment. Results were mixed and provided alternative explanations, especially for Qwen.
 
 ### Final Step 2 — Paired neural reward-only versus swap-regularized learning
 
@@ -640,7 +640,7 @@ Neither planning-advantage interval excludes zero. We therefore **did not demons
 
 **Main neural finding:** With this particular online-learning rule and short-memory surrogate, swap regularization made A more predictable (lower policy entropy), more exploitable by adaptive B, and higher-regret under those adaptive trajectories. This is a **negative result about our setup**, not a result about all regret objectives or all LLMs.
 
-**Code and data:** `step2_neural_swap_validation.py`, `online_transformer_rps_model_mismatch.py`, `step2_neural_swap_results/runs.csv`.
+**Code and data:** `src/neural/neural_swap_validation.py`, `src/neural/online_transformer_rps_model_mismatch.py`, `outputs/neural_swap_results/runs.csv`.
 
 ---
 
@@ -705,27 +705,26 @@ ollama ls
 
 | Stage | File(s) | Purpose |
 |---|---|---|
-| Regret fundamentals | `compare_learners_payoffs.py`, `.patch` | Hedge, SwapMW, payoff-matrix indexing |
-| Constructed bait manipulation | `learning_aware_opponent_step2.py` | Hedge learns; B plans Bait/Exploit |
-| Online neural in bait game | `online_transformer_planner.py` | Neural updates + white-box planner |
-| Online Transformer in RPS | `online_transformer_rps_planner.py` | Reward and swap-regularized A with B planning |
-| Horizon comparisons | `online_transformer_rps_horizon_compare.py` | Uniform, fixed, myopic, horizon-2/3 planning |
-| Update-model mismatch | `online_transformer_rps_model_mismatch.py` | Exact/inaccurate assumptions about A's learning |
-| Learning-effect ablation | `rps_learning_update_ablation.py` | Same history, weights updated versus frozen |
-| Stationary benchmark | `online_transformer_rps_stationary_benchmark.py` | Coarse-grid fixed mixtures versus adaptive play |
-| Black-box frequency predictor | `rps_blackbox_opponent.py` | Behavioural estimation without gradients |
-| Black-box GRU model | `rps_blackbox_dynamics.py` | Learn action-pair dynamics and MAP planning |
-| Probability-weighted GRU rollouts | `rps_blackbox_expected_rollouts.py` | Compare MAP versus expected future actions |
-| Initial LLM baseline | `rps_ollama_baseline.py` | Ollama history/no-history conditions |
-| Optional Hugging Face inference baseline | `rps_pretrained_llm_baseline.py` | Alternative model-loading interface |
-| LLM fixed/reactive bait | `rps_ollama_bait_switch.py`, `rps_ollama_adaptive_bait.py` | Bait cost, reactive switching |
-| LLM bait controls | `rps_ollama_bait_causality.py` | Always Scissors versus bait schedules |
-| **Final Step 1** | **`step1_controlled_ollama_rps.py`** | Matched-prefix real-LLM comparison |
-| **Final Step 2** | **`step2_neural_swap_validation.py`** | Paired online-neural validation with bootstrap intervals |
+| Regret fundamentals | `src/regret_learning/compare_learners.py` | Hedge, SwapMW, payoff-matrix indexing |
+| Constructed bait manipulation | `src/neural/learning_aware_opponent.py` | Hedge learns; B plans Bait/Exploit |
+| Online neural in bait game | `src/neural/online_neural_learning.py`, `src/neural/online_transformer_planner.py` | Neural updates + white-box planner |
+| Online Transformer in RPS | `src/neural/strategic_online_transformer_planner.py` | Reward and swap-regularized A with B planning |
+| Horizon comparisons | `src/neural/horizon_strategic_online_transformer_planner.py` | Uniform, fixed, myopic, horizon-2/3 planning |
+| Update-model mismatch | `src/neural/online_transformer_rps_model_mismatch.py` | Exact/inaccurate assumptions about A's learning |
+| Learning-effect ablation | `src/neural/rps_learning_update_ablation.py` | Same history, weights updated versus frozen |
+| Stationary benchmark | `src/neural/online_transformer_rps_stationary_benchmark.py` | Coarse-grid fixed mixtures versus adaptive play |
+| Black-box frequency predictor | `src/neural/blackbox_opponent.py` | Behavioural estimation without gradients |
+| Black-box GRU model | `src/neural/rps_blackbox_dynamics.py` | Learn action-pair dynamics and MAP planning |
+| Probability-weighted GRU rollouts | `src/neural/rps_blackbox_expected_rollouts.py` | Compare MAP versus expected future actions |
+| Initial LLM baseline | `src/llm/rps_ollama_baseline.py` | Ollama history/no-history conditions |
+| LLM fixed/reactive bait | `src/llm/rps_ollama_bait_switch.py`, `src/llm/rps_ollama_adaptive_bait.py` | Bait cost, reactive switching |
+| LLM bait controls | `src/llm/rps_ollama_bait_causality.py` | Always Scissors versus bait schedules |
+| **Final Step 1** | **`src/llm/controlled_ollama_rps.py`** | Matched-prefix real-LLM comparison |
+| **Final Step 2** | **`src/neural/neural_swap_validation.py`** | Paired online-neural validation with bootstrap intervals |
 
 The original MLP, tiny prediction Transformer, reward-trained Transformer and episodic swap-surrogate examples were first developed as **inline learning exercises** in the conversation or in the user's own repository; standalone files for those particular early examples are **not included** in this artifact list.
 
-Some scripts import another script from the same directory. For example, `step2_neural_swap_validation.py` imports `online_transformer_rps_model_mismatch.py`. The original `compare_learners_payoffs.py` imports user-created `src/` modules. Copy the required dependencies together; downloading this README alone does not bundle those Python files.
+Run the research commands below from the repository root so Python can import the `src` modules.
 
 ### Run the final controlled LLM experiment
 
@@ -733,35 +732,34 @@ Ensure Ollama is running and the model names exist in `ollama ls`:
 
 ```bash
 MODELS=llama3.1:8b,qwen3.5:latest PREFIXES=2 WARMUP=3 ROUNDS=12 \
-  python3 step1_controlled_ollama_rps.py
+  python3 -m src.llm.controlled_ollama_rps
 ```
 
-Outputs are written to `ollama_rps_results/episodes.csv` and `ollama_rps_results/rounds.csv`. The supplied evidence copies are named `episodes.csv` and `rounds.csv`.
+Outputs are written to `outputs/ollama_rps_results/episodes.csv` and `outputs/ollama_rps_results/rounds.csv`.
 
 ### Run the final paired neural comparison
 
 ```bash
 SEEDS=10 STRATEGIES=uniform,myopic,plan2 \
-  python3 step2_neural_swap_validation.py
+  python3 -m src.neural.neural_swap_validation
 ```
 
 For a larger re-evaluation:
 
 ```bash
 SEEDS=20 STRATEGIES=uniform,myopic,plan2 \
-  python3 step2_neural_swap_validation.py
+  python3 -m src.neural.neural_swap_validation
 ```
 
-Output: `neural_swap_results/runs.csv`.
+Output is written to `outputs/neural_swap_results/runs.csv`.
 
 ### Evidence files
 
 | File | What it contains | Observations |
 |---|---|---:|
-| `episodes.csv` | Final LLM experiment per model/prefix/strategy | **20 episodes** |
-| `rounds.csv` | Final LLM round-level actions and B rewards | **240 evaluation rounds** |
-| `neural_swap_results/runs.csv` | Final neural per-seed results | **60 runs** |
-| `llm_regret_learning_preliminary_report.md` | Shorter research-style synthesis | — |
+| `outputs/ollama_rps_results/episodes.csv` | Final LLM experiment per model/prefix/strategy | **20 episodes** |
+| `outputs/ollama_rps_results/rounds.csv` | Final LLM round-level actions and B rewards | **240 evaluation rounds** |
+| `outputs/neural_swap_results/runs.csv` | Final neural per-seed results | **60 runs** |
 
 Data and code describe distinct stages and should not be pooled without accounting for differences in models, seeds, episode lengths, opponent behaviour, and metrics.
 
