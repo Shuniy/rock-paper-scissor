@@ -241,6 +241,61 @@ describe('live runner', () => {
   });
 });
 
+it('reloads the failed catalog once when the backend recovers', async () => {
+  vi.useFakeTimers();
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+  vi.stubGlobal('localStorage', {getItem: () => null, setItem: () => {}});
+  let available = false;
+  const fetcher = vi.fn(async (path: string) => {
+    if (!available) throw new Error('Backend offline');
+    return json(path.endsWith('/experiments') ? [experiment] : {status: 'ok'});
+  });
+  vi.stubGlobal('fetch', fetcher);
+  render(<MemoryRouter initialEntries={['/category/regret']}><App/></MemoryRouter>);
+  await act(() => vi.advanceTimersByTimeAsync(0));
+  expect(screen.getByText('API unavailable')).toBeTruthy();
+  expect(screen.getByRole('button', {name: 'retry'})).toBeTruthy();
+  expect(screen.queryByText(experiment.title)).toBeNull();
+  expect(fetcher.mock.calls.map(([path]) => path)).toEqual(['/api/experiments', '/api/health']);
+
+  available = true;
+  await act(() => vi.advanceTimersByTimeAsync(15000));
+  expect(screen.getByText('Local lab online')).toBeTruthy();
+  expect(screen.getByText(experiment.title)).toBeTruthy();
+  expect(screen.queryByRole('button', {name: 'retry'})).toBeNull();
+
+  await act(() => vi.advanceTimersByTimeAsync(30000));
+  expect(fetcher.mock.calls.map(([path]) => path)).toEqual([
+    '/api/experiments', '/api/health', '/api/health', '/api/experiments', '/api/health', '/api/health',
+  ]);
+});
+
+it('keeps manual retry available if the automatic catalog reload fails', async () => {
+  vi.useFakeTimers();
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+  vi.stubGlobal('localStorage', {getItem: () => null, setItem: () => {}});
+  let healthy = false;
+  let catalogAvailable = false;
+  const fetcher = vi.fn(async (path: string) => {
+    if (path.endsWith('/health')) return json({status: healthy ? 'ok' : 'unavailable'});
+    return catalogAvailable ? json([experiment]) : json({}, 503);
+  });
+  vi.stubGlobal('fetch', fetcher);
+  render(<MemoryRouter initialEntries={['/category/regret']}><App/></MemoryRouter>);
+  await act(() => vi.advanceTimersByTimeAsync(0));
+  healthy = true;
+  await act(() => vi.advanceTimersByTimeAsync(15000));
+  expect(screen.getByText('Local lab online')).toBeTruthy();
+  expect(screen.getByRole('button', {name: 'retry'})).toBeTruthy();
+
+  catalogAvailable = true;
+  await act(() => vi.advanceTimersByTimeAsync(15000));
+  expect(fetcher.mock.calls.filter(([path]) => path === '/api/experiments')).toHaveLength(2);
+  fireEvent.click(screen.getByRole('button', {name: 'retry'}));
+  await act(() => vi.advanceTimersByTimeAsync(0));
+  expect(screen.getByText(experiment.title)).toBeTruthy();
+});
+
 it('updates connectivity on health loss and recovery while retaining the catalog', async () => {
   vi.useFakeTimers();
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
@@ -263,6 +318,7 @@ it('updates connectivity on health loss and recovery while retaining the catalog
   available = true;
   await act(() => vi.advanceTimersByTimeAsync(15000));
   expect(screen.getByText('Local lab online')).toBeTruthy();
+  expect(screen.getByText(experiment.title)).toBeTruthy();
   view.unmount();
   await vi.advanceTimersByTimeAsync(30000);
   expect(fetcher.mock.calls.map(([path]) => path)).toEqual(['/api/experiments', '/api/health', '/api/health', '/api/health']);
@@ -278,9 +334,12 @@ describe('results', () => {
     expect(incompatibility([run, {...run, experiment_id: 'n1'}])).toContain('protocols');
   });
 
-  it('keeps descriptive comparisons available and labels matching parameters', async () => {
+  it('describes configuration and condition matches while keeping charts and exports available', async () => {
+    const otherCondition = 'Regret matching';
     const first: Run = {...run, status: 'completed', parameters: {...run.parameters, seed: 1},
-      events: [{type: 'round', data: round}], summary: [{condition: 'Hedge', rounds: 1}]};
+      conditions: ['Hedge', otherCondition],
+      events: [{type: 'round', data: round}, {type: 'round', data: {...round, condition: otherCondition}}],
+      summary: [{condition: 'Hedge', rounds: 1}, {condition: otherCondition, rounds: 1}]};
     const different: Run = {...first, id: 'different', parameters: {rounds: 5, seed: 2, strategy: 'uniform', fixed_action: 'Paper'}};
     const matched: Run = {...first, id: 'matched'};
     const candidates = [first, different, matched];
@@ -292,10 +351,19 @@ describe('results', () => {
     fireEvent.click(two);
     expect(await screen.findByText(/Descriptive comparison.*opponent strategy, seed/)).toBeTruthy();
     expect(screen.getByRole('heading', {name: 'Configurations'})).toBeTruthy();
-    expect(screen.getByRole('button', {name: 'CSV'})).toBeTruthy();
     fireEvent.click(two);
     fireEvent.click(three);
-    expect(await screen.findByText(/Matched run parameters/)).toBeTruthy();
+    const matching = /Run parameters and selected conditions match.*stochastic or adaptive behavior/;
+    expect(await screen.findByText(matching)).toBeTruthy();
+    const condition = screen.getByLabelText('Run 2 condition');
+    fireEvent.change(condition, {target: {value: otherCondition}});
+    expect(screen.getByText(/Descriptive comparison.*different evaluation conditions/)).toBeTruthy();
+    expect(screen.queryByText(matching)).toBeNull();
+    expect(screen.getByRole('region', {name: /Condition comparison/})).toBeTruthy();
+    expect(screen.getByRole('button', {name: 'CSV'})).toBeTruthy();
+    expect(screen.getByRole('button', {name: 'JSON'})).toBeTruthy();
+    fireEvent.change(condition, {target: {value: 'Hedge'}});
+    expect(screen.getByText(matching)).toBeTruthy();
   });
 
   it('loads recorded round data and steps through it without posting a run', async () => {

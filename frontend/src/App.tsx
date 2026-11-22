@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Archive, Atom, BookOpen, ChevronRight, FlaskConical, LayoutGrid, Menu, Moon,
   Play, ScanLine, Sun, Swords, X, Zap, BrainCircuit, Network } from 'lucide-react';
 import { Link, NavLink, Route, Routes, useLocation, useParams } from 'react-router-dom';
@@ -144,6 +144,7 @@ export default function App() {
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [load, setLoad] = useState<'loading' | 'ready' | 'error'>('loading');
   const [connection, setConnection] = useState<'loading' | 'ready' | 'error'>('loading');
+  const previousConnection = useRef(connection);
   const [version, setVersion] = useState(0);
   const [collapsed, setCollapsed] = useState(true);
   const [theme, setTheme] = useState(() => localStorage.getItem('lab-theme') || 'dark');
@@ -180,6 +181,14 @@ export default function App() {
       controller.abort();
     };
   }, []);
+  useEffect(() => {
+    const recovered = previousConnection.current !== 'ready' && connection === 'ready';
+    previousConnection.current = connection;
+    if (recovered && load === 'error') {
+      setLoad('loading');
+      setVersion(version + 1);
+    }
+  }, [connection, load, version]);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('lab-theme', theme);
@@ -218,7 +227,7 @@ export default function App() {
       </header>
       <main id="lab-content" className="main-content">
         {load !== 'ready' && <Notice danger={load === 'error'}>{load === 'error' ?
-          <>The local backend could not be reached. Start the Python API and <button className="text-button" onClick={() => {setLoad('loading');setVersion(i => i + 1);}}>retry</button>.</> : 'Connecting to the local API…'}</Notice>}
+          <>The local backend could not be reached. Start the Python API and <button className="text-button" onClick={() => {setLoad('loading');setVersion(version + 1);}}>retry</button>.</> : 'Connecting to the local API…'}</Notice>}
         <Suspense fallback={<div className="panel empty-state" role="status">Loading the lab view…</div>}><Routes>
           <Route path="/" element={<Overview/>}/>
           <Route path="/category/:category" element={<CategoryPage experiments={experiments}/>}/>

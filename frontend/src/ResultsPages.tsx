@@ -194,8 +194,10 @@ export function ComparePage({ experiments }: { experiments: Experiment[] }) {
   }, [selected, invalid]);
 
   const title = (run: RunMeta) => experiments.find(exp => exp.id === run.experiment_id)?.title || run.experiment_id.toUpperCase();
+  const selectedConditions = loaded.map(run => conditions[run.id] || run.conditions[0]);
+  const differentConditions = selectedConditions.some(condition => condition !== selectedConditions[0]);
   const traces = loaded.map((run, i) => {
-    const name = conditions[run.id] || run.conditions[0];
+    const name = selectedConditions[i];
     return {name: `${i + 1}. ${name}`, rows: rowsOf(run.events).filter(row => row.condition === name), id: run.id,
       summary: run.summary.find(row => row.condition === name), parameters: run.parameters};
   });
@@ -224,12 +226,13 @@ export function ComparePage({ experiments }: { experiments: Experiment[] }) {
     {detailsLoading && <p role="status">Loading comparable run results…</p>}
     {traces.length >= 2 && <section className="compare-results">
       <div className="archive-source"><p>{differences.length ?
-        `Descriptive comparison. Run settings differ for ${differences.join(', ')}.` :
-        'Matched run parameters. Adaptive trajectories can still differ.'}</p>
+        `Descriptive comparison. Run configurations differ in ${differences.join(', ')}.` : differentConditions ?
+        'Descriptive comparison. Run parameters match and different evaluation conditions are selected.' :
+        'Run parameters and selected conditions match. Results may still differ due to stochastic or adaptive behavior.'}</p>
         <div className="export-buttons"><button className="button secondary compact" onClick={() => downloadCsv('comparison.csv', exportRows)}><Download size={15}/> CSV</button>
           <button className="button secondary compact" onClick={() => download('comparison.json', JSON.stringify(traces, null, 2), 'application/json')}><Download size={15}/> JSON</button></div></div>
       <div className="filter-bar">{loaded.map((run, i) => <label key={run.id} className="inline-field">Run {i + 1} condition
-        <select value={conditions[run.id] || run.conditions[0]} onChange={event => setConditions(current => ({...current, [run.id]: event.target.value}))}>
+        <select value={selectedConditions[i]} onChange={event => setConditions(current => ({...current, [run.id]: event.target.value}))}>
           {run.conditions.map(condition => <option key={condition}>{condition}</option>)}</select></label>)}</div>
       <Overlay traces={traces}/>
       <DataTable title="Final metrics" rows={summaries}/>
